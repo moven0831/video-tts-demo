@@ -1,6 +1,13 @@
 import type { Probe, VoiceManifest, Word } from "../schema/artifacts.ts";
 import type { Card, EditPlan, Line, Scene } from "../schema/edit-plan.ts";
-import { boxToStage, buildCamera, containFit, pointToStage } from "./camera.ts";
+import {
+  boxToStage,
+  buildCamera,
+  cameraTransform,
+  containFit,
+  pointToStage,
+  type CameraKey,
+} from "./camera.ts";
 import { buildCaptions } from "./captions.ts";
 import { duckingLane } from "./ducking.ts";
 import { Timeline } from "./types.ts";
@@ -43,6 +50,7 @@ export function buildTimeline(
   voice: VoiceManifest,
 ): { timeline: Timeline; warnings: string[] } {
   const stage = plan.meta.output;
+  const maxZoom = plan.style.camera.maxZoom;
   const fit = containFit(probe, stage);
   const warnings: string[] = [];
   const out = {
@@ -54,14 +62,15 @@ export function buildTimeline(
     narration: [] as Timeline["narration"],
     sfx: [] as Timeline["sfx"],
   };
-  const cameraKeys: Parameters<typeof buildCamera>[0] = [];
+  const cameraKeys: CameraKey[] = [];
   const words: Word[] = [];
 
   let cursor = 0;
   let total = 0;
   let lastDuration = 0;
   let lastNarrationEnd = 0;
-  let pending: Transition | null = null;
+  let pending: { chapter: string; transition: Transition } | null = null;
+  let cameraAtRest = true;
 
   const voiceLine = (id: string) => {
     const entry = voice.lines[id];
@@ -71,9 +80,22 @@ export function buildTimeline(
   const speechLength = (lines: Line[]) =>
     LEAD_IN_SEC + lines.reduce((sum, l) => sum + voiceLine(l.id).duration + l.pauseAfter, 0);
 
-  const beginItem = (): number => {
+  // Cards and the middle of a black gap hide the video, so a reset there is invisible.
+  const resetCamera = (t: number) => {
+    if (cameraAtRest) return;
+    cameraKeys.push({ t, box: null, instant: true });
+    cameraAtRest = true;
+  };
+
+  const beginItem = (next: "card" | "scene"): number => {
     if (pending) {
-      const { kind, sec } = pending;
+      const { kind, sec } = pending.transition;
+      if (next === "scene" && kind !== "fade-black" && !cameraAtRest) {
+        warnings.push(
+          `chapter "${pending.chapter}" ends zoomed in; add a box: null camera key before it ends`,
+        );
+      }
+      if (kind === "fade-black") resetCamera(cursor + sec / 2);
       if (kind === "cut") {
         out.transitions.push({ kind, at: cursor, duration: 0 });
       } else if (kind === "fade-black") {
@@ -87,6 +109,7 @@ export function buildTimeline(
       }
       pending = null;
     }
+    if (next === "card") resetCamera(cursor);
     return cursor;
   };
   const endItem = (start: number, duration: number) => {
@@ -108,7 +131,7 @@ export function buildTimeline(
   };
 
   const placeCard = (id: string, card: Card) => {
-    const start = beginItem();
+    const start = beginItem("card");
     let at = start + LEAD_IN_SEC;
     for (const line of card.narration) {
       addNarration(line, at);
@@ -131,7 +154,7 @@ export function buildTimeline(
 
   const sfxCount = new Map<string, number>();
   const placeScene = (scene: Scene) => {
-    const start = beginItem();
+    const start = beginItem("scene");
     const { in: sourceIn, out: sourceOut } = scene.source;
     const sourceSec = sourceOut - sourceIn;
 
@@ -185,6 +208,8 @@ export function buildTimeline(
     for (const { line, start: lineStart } of laid.placed) addNarration(line, start + lineStart);
     for (const key of [...scene.camera].sort((a, b) => a.t - b.t)) {
       cameraKeys.push({ t: toOut(key.t), box: key.box });
+      const { scale, x, y } = cameraTransform(key.box, fit, stage, probe, maxZoom);
+      cameraAtRest = scale === 1 && x === 0 && y === 0;
     }
     for (const click of scene.clicks) {
       const point = pointToStage(fit, click.x, click.y);
@@ -215,7 +240,7 @@ export function buildTimeline(
   for (const chapter of plan.chapters) {
     if (chapter.card) placeCard(chapter.id, chapter.card);
     for (const scene of chapter.scenes) placeScene(scene);
-    pending = chapter.transition;
+    pending = { chapter: chapter.id, transition: chapter.transition };
   }
   // A transition with nothing after it is dropped.
   if (plan.outro) placeCard("outro", plan.outro);
@@ -244,7 +269,7 @@ export function buildTimeline(
     source: probe,
     stage,
     fit,
-    maxZoom: plan.style.camera.maxZoom,
+    maxZoom,
     moveSec: plan.style.camera.moveSec,
   });
 

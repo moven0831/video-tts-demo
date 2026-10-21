@@ -389,6 +389,67 @@ test("camera keyframes use output times and the plan's camera style", () => {
   );
 });
 
+const zoomBox = { x: 640, y: 180, w: 480, h: 270 };
+
+function zoomedChapter(
+  transition: { kind: string; sec: number } | undefined,
+  next: Partial<ChapterInput> = {},
+  key: unknown = { t: 1, box: zoomBox },
+) {
+  const plan = planOf([
+    { id: "a", scenes: [{ id: "s1", source: { in: 0, out: 4 }, camera: [key] }], transition },
+    { id: "b", scenes: [{ id: "s2", source: { in: 4, out: 7 } }], ...next },
+  ]);
+  return buildTimeline(plan, probe, voiceOf({}));
+}
+
+test("a chapter card resets a zoomed camera with an instant key", () => {
+  const { timeline, warnings } = zoomedChapter(undefined, {
+    card: { kind: "chapter", title: "B", sec: 2 },
+  });
+  assert.deepEqual(
+    timeline.camera.map((k) => [k.t, k.scale, k.x, k.y, k.duration]),
+    [
+      [1, 2.4, -2208, -594, 0.7],
+      [4, 1, 0, 0, 0],
+    ],
+  );
+  assert.deepEqual(warnings, []);
+});
+
+test("the middle of a fade-black gap resets a zoomed camera", () => {
+  const { timeline, warnings } = zoomedChapter({ kind: "fade-black", sec: 1 });
+  assert.deepEqual(
+    timeline.camera.map((k) => [k.t, k.scale, k.duration]),
+    [
+      [1, 2.4, 0.7],
+      [4.5, 1, 0],
+    ],
+  );
+  assert.deepEqual(warnings, []);
+});
+
+test("no reset key is added when the camera is already at full frame", () => {
+  const withCard = { card: { kind: "chapter", title: "B", sec: 2 } };
+  assert.equal(zoomedChapter(undefined, withCard, { t: 1, box: null }).timeline.camera.length, 1);
+  const fade = zoomedChapter({ kind: "fade-black", sec: 1 }, {}, { t: 1, box: null });
+  assert.equal(fade.timeline.camera.length, 1);
+});
+
+test("a zoomed chapter reaching a scene without a card or fade warns", () => {
+  for (const kind of ["cut", "dissolve", "push"]) {
+    const { timeline, warnings } = zoomedChapter({ kind, sec: 0.5 });
+    assert.equal(timeline.camera.length, 1, kind);
+    const warning = warnings.find((w) => w.includes("zoomed"));
+    assert.match(warning ?? "", /chapter "a" ends zoomed in; add a box: null camera key/, kind);
+  }
+});
+
+test("an at-rest chapter reaching a scene by cut does not warn", () => {
+  const { warnings } = zoomedChapter({ kind: "cut", sec: 0 }, {}, { t: 1, box: null });
+  assert.deepEqual(warnings, []);
+});
+
 test("sfx get scene-index ids and mapped start times", () => {
   const plan = planOf(
     [{ id: "a", scenes: [{ id: "s", source: { in: 2, out: 8 } }, { id: "u", source: { in: 8, out: 9 } }] }],

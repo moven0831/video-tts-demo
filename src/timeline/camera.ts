@@ -83,16 +83,20 @@ export type CameraContext = {
   moveSec: number;
 };
 
+export type CameraKey = { t: number; box: Box | null; instant?: boolean };
+
 // Keys carry output times in play order; a move never starts before the previous one ends.
+// An instant key is a zero-length reset that jumps when it fires.
 export function buildCamera(
-  keys: { t: number; box: Box | null }[],
+  keys: CameraKey[],
   ctx: CameraContext,
 ): Timeline["camera"] {
   let free = 0;
   return keys.map((key) => {
     const t = Math.max(key.t, free);
-    free = t + ctx.moveSec;
+    const duration = key.instant ? 0 : ctx.moveSec;
+    free = t + duration;
     const transform = cameraTransform(key.box, ctx.fit, ctx.stage, ctx.source, ctx.maxZoom);
-    return { t, ...transform, duration: ctx.moveSec, ease: EASE };
+    return { t, ...transform, duration, ease: EASE };
   });
 }
