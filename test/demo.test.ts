@@ -41,6 +41,8 @@ test("demo without --yes probes, checks the plan, shows the voice spend and stop
   assert.match(stdout, /lines: 5, characters: 145, uncached characters: 145/);
   assert.match(stdout, /pass --yes to generate/);
   assert.match(stderr, /rerun with --yes/);
+  assert.match(stderr, /^error: /m);
+  assert.doesNotMatch(stderr, /\n\s+at /);
   await assert.rejects(access(join(dir, "build/voice.json")));
   assert.match(await readFile(join(dir, "build/probe.hash"), "utf8"), /^[0-9a-f]{64}$/);
 });

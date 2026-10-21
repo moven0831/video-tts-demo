@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { run, runBuffer, runInherited, runStreaming } from "./exec.ts";
+import { EXIT_NEEDS_SPEND, run, runBuffer, runInherited, runMain, runStreaming } from "./exec.ts";
 
 test("runInherited resolves to the exit code, zero or not", async () => {
   assert.equal(await runInherited(process.execPath, ["-e", "process.exit(0)"]), 0);
@@ -15,6 +15,27 @@ test("runInherited gives the child no stdin, so prompts cannot block it", async 
   const code = await Promise.race([runInherited(process.execPath, ["-e", script]), hung]);
   clearTimeout(timer);
   assert.equal(code, 7);
+});
+
+test("runMain prints the message, not a stack, and sets exit code 1", async (t) => {
+  const printed: string[] = [];
+  t.mock.method(console, "error", (line: string) => printed.push(line));
+  t.after(() => (process.exitCode = undefined));
+  await runMain(async () => {
+    throw new Error("plan needs to spend");
+  });
+  assert.deepEqual(printed, ["error: plan needs to spend"]);
+  assert.equal(process.exitCode, 1);
+});
+
+test("runMain leaves the exit code alone when main succeeds or sets its own", async (t) => {
+  t.after(() => (process.exitCode = undefined));
+  await runMain(async () => {});
+  assert.equal(process.exitCode, undefined);
+  await runMain(async () => {
+    process.exitCode = EXIT_NEEDS_SPEND;
+  });
+  assert.equal(process.exitCode, EXIT_NEEDS_SPEND);
 });
 
 test("runBuffer returns binary stdout untouched", async () => {

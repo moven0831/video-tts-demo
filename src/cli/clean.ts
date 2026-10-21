@@ -1,6 +1,7 @@
 import { readdir, rm } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { runMain } from "../util/exec.ts";
 import { parseProjectArgs, type projectPaths } from "../util/project.ts";
 
 type Paths = ReturnType<typeof projectPaths>;
@@ -23,18 +24,20 @@ export async function cleanAll(
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const { paths, values } = parseProjectArgs(process.argv.slice(2), {
-    all: { type: "boolean" },
-    cache: { type: "boolean" },
-  });
+  await runMain(async () => {
+    const { paths, values } = parseProjectArgs(process.argv.slice(2), {
+      all: { type: "boolean" },
+      cache: { type: "boolean" },
+    });
 
-  if (values.all) {
-    await cleanAll(paths, { cache: values.cache === true });
-  } else {
-    await rm(paths.hf, { recursive: true, force: true });
-    await rm(paths.render, { force: true });
-    const hashes = (await readdir(paths.build).catch(() => [])).filter((f) => f.endsWith(".hash"));
-    for (const file of hashes) await rm(join(paths.build, file));
-    console.log(`removed ${paths.hf}, ${paths.render} and ${hashes.length} stage hashes`);
-  }
+    if (values.all) {
+      await cleanAll(paths, { cache: values.cache === true });
+    } else {
+      await rm(paths.hf, { recursive: true, force: true });
+      await rm(paths.render, { force: true });
+      const hashes = (await readdir(paths.build).catch(() => [])).filter((f) => f.endsWith(".hash"));
+      for (const file of hashes) await rm(join(paths.build, file));
+      console.log(`removed ${paths.hf}, ${paths.render} and ${hashes.length} stage hashes`);
+    }
+  });
 }

@@ -13,7 +13,7 @@ import {
 import { buildPlanRequest } from "../director/prompt.ts";
 import { skeletonFromNarration } from "../director/skeleton.ts";
 import { Motion, Probe, SceneCuts } from "../schema/artifacts.ts";
-import { EXIT_NEEDS_SPEND } from "../util/exec.ts";
+import { EXIT_NEEDS_SPEND, runMain } from "../util/exec.ts";
 import { readJson, writeJson } from "../util/fs.ts";
 import { parseProjectArgs, projectPaths } from "../util/project.ts";
 
@@ -92,19 +92,21 @@ export async function runPlanFromNarration(
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const { paths, values } = parseProjectArgs(process.argv.slice(2), {
-    yes: { type: "boolean" },
-    force: { type: "boolean" },
-    "from-narration": { type: "string" },
-  });
-  if (values["from-narration"] !== undefined) {
-    const text = await readFile(values["from-narration"], "utf8");
-    await runPlanFromNarration(paths, text, { force: !!values.force });
-  } else {
-    const outcome = await runPlan(paths, new Anthropic(), {
-      yes: !!values.yes,
-      force: !!values.force,
+  await runMain(async () => {
+    const { paths, values } = parseProjectArgs(process.argv.slice(2), {
+      yes: { type: "boolean" },
+      force: { type: "boolean" },
+      "from-narration": { type: "string" },
     });
-    if (outcome === "needs-spend") process.exitCode = EXIT_NEEDS_SPEND;
-  }
+    if (values["from-narration"] !== undefined) {
+      const text = await readFile(values["from-narration"], "utf8");
+      await runPlanFromNarration(paths, text, { force: !!values.force });
+    } else {
+      const outcome = await runPlan(paths, new Anthropic(), {
+        yes: !!values.yes,
+        force: !!values.force,
+      });
+      if (outcome === "needs-spend") process.exitCode = EXIT_NEEDS_SPEND;
+    }
+  });
 }

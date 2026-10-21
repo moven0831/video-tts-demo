@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { Probe } from "../schema/artifacts.ts";
 import { EditPlan } from "../schema/edit-plan.ts";
 import { validatePlan } from "../schema/validate.ts";
+import { runMain } from "../util/exec.ts";
 import { readJson } from "../util/fs.ts";
 import { parseProjectArgs } from "../util/project.ts";
 
@@ -40,9 +41,11 @@ export function checkPlan(planJson: unknown, probe: Probe): { ok: boolean; repor
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const { paths } = parseProjectArgs(process.argv.slice(2), {});
-  const probe = await readJson(paths.probe, Probe);
-  const { ok, report } = checkPlan(JSON.parse(await readFile(paths.plan, "utf8")), probe);
-  console.log(report);
-  process.exitCode = ok ? 0 : 1;
+  await runMain(async () => {
+    const { paths } = parseProjectArgs(process.argv.slice(2), {});
+    const probe = await readJson(paths.probe, Probe);
+    const { ok, report } = checkPlan(JSON.parse(await readFile(paths.plan, "utf8")), probe);
+    console.log(report);
+    process.exitCode = ok ? 0 : 1;
+  });
 }

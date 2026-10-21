@@ -8,6 +8,16 @@ const TAIL_LINES = 20;
 // A stage that stopped before spending money exits with this code.
 export const EXIT_NEEDS_SPEND = 3;
 
+// Entry point wrapper: a failure prints one line instead of a stack trace.
+export async function runMain(main: () => Promise<void>): Promise<void> {
+  try {
+    await main();
+  } catch (err) {
+    console.error(`error: ${err instanceof Error ? err.message : String(err)}`);
+    process.exitCode = 1;
+  }
+}
+
 function startPiped(cmd: string, args: string[], opts: Opts) {
   return spawn(cmd, args, {
     cwd: opts.cwd,
