@@ -5,6 +5,7 @@ export type Validation = { errors: string[]; warnings: string[] };
 
 const CHARS_PER_SEC = 15;
 const MAX_VISIBLE_CALLOUTS = 3;
+const SOURCE_TOLERANCE = { width: 0, height: 0, fps: 0.01, duration: 0.05 };
 
 export function clampBox(box: Box, frame: Pick<Probe, "width" | "height">): Box | null {
   const x = Math.max(box.x, 0);
@@ -41,6 +42,16 @@ export function validatePlan(plan: EditPlan, probe: Probe): Validation {
       warnings.push(`${path}: box clamped to the frame`);
     }
   };
+
+  const { source } = plan.meta;
+  for (const key of ["width", "height", "fps", "duration"] as const) {
+    if (Math.abs(source[key] - probe[key]) > SOURCE_TOLERANCE[key]) {
+      warnings.push(
+        `meta.source.${key} is ${source[key]} but the recording is ${probe[key]}; ` +
+          "it may have been replaced after planning",
+      );
+    }
+  }
 
   if (plan.intro) checkLines(plan.intro.narration, "intro.narration");
 

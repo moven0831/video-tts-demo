@@ -8,8 +8,12 @@ type Stream = {
   avg_frame_rate?: string;
   r_frame_rate?: string;
   color_space?: string;
+  nb_frames?: string;
+  duration?: string;
 };
 export type ProbeJson = { streams: Stream[]; format: { duration?: string } };
+
+const VFR_TOLERANCE = 0.01;
 
 function rate(value: string | undefined): number | undefined {
   const [num, den] = (value ?? "").split("/").map(Number);
@@ -29,6 +33,12 @@ export function parseProbe(json: ProbeJson): Probe {
     duration: Number(json.format.duration),
   };
   if (video.color_space && video.color_space !== "unknown") probe.colorSpace = video.color_space;
+  const counted = Number(video.nb_frames);
+  const estimated = Math.floor(Number(video.duration) * fps);
+  const frames = counted > 0 ? counted : estimated;
+  if (Number.isFinite(frames) && frames > 0) probe.frames = frames;
+  const nominal = rate(video.r_frame_rate);
+  if (nominal !== undefined && Math.abs(nominal - fps) / fps > VFR_TOLERANCE) probe.vfr = true;
   return probe;
 }
 

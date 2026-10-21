@@ -34,7 +34,7 @@ test("every video is muted and carries data-media-start", () => {
 
 test("segments with a freeze emit a still and shorten the video", () => {
   const result = compose(timeline, plan);
-  assert.deepEqual(result.stills, [{ at: 4, to: "assets/freeze-open-app.png" }]);
+  assert.deepEqual(result.stills, [{ scene: "open-app", at: 4, to:"assets/freeze-open-app.png" }]);
   const html = result.files["index.html"];
   assert.match(html, /<video id="vid-open-app"[^>]*data-start="6" data-duration="4"/);
   assert.match(html, /<img id="frz-open-app"[^>]*data-start="10" data-duration="1.1"/);

@@ -9,7 +9,7 @@ import { VENDORED } from "./vendor.ts";
 export type ComposeResult = {
   files: Record<string, string>;
   copies: { from: string; to: string }[];
-  stills: { at: number; to: string }[];
+  stills: { scene: string; at: number; to: string }[];
   warnings: string[];
 };
 
@@ -198,7 +198,7 @@ export function compose(timeline: Timeline, plan: EditPlan): ComposeResult {
   ];
 
   const stills = timeline.segments.flatMap((s) =>
-    s.freeze ? [{ at: s.freeze.at, to: `assets/freeze-${s.scene}.png` }] : [],
+    s.freeze ? [{ scene: s.scene, at: s.freeze.at, to: `assets/freeze-${s.scene}.png` }] : [],
   );
 
   files["index.html"] = `<!doctype html>

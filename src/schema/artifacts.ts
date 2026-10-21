@@ -9,6 +9,10 @@ export const Probe = z.object({
   fps: z.number().positive(),
   duration: sec,
   colorSpace: z.string().optional(),
+  // Frames in the video stream; the format duration can run past the last video frame.
+  frames: z.number().int().positive().optional(),
+  // r_frame_rate and avg_frame_rate disagree, so frame index and time do not line up.
+  vfr: z.literal(true).optional(),
 });
 
 export const SceneCuts = z.array(z.object({ t: sec, score: z.number() }));

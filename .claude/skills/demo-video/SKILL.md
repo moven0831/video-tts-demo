@@ -36,6 +36,9 @@ Read, in this order: `build/contact.jpg` (overview), `build/scenes.json` (cuts),
 source time is in `build/sheets/index.json`; use it to convert tile positions to source seconds and
 source pixels (the conversion is spelled out in `src/director/DIRECTOR.md`).
 
+If probe warns of a variable frame rate (typical for screen captures), re-encode first:
+`ffmpeg -i in.mov -vf fps=30 -c:v libx264 -crf 16 input.mp4`.
+
 ## 2. Plan
 
 Two routes, same output:

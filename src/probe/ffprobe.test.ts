@@ -47,6 +47,26 @@ test("omits an unknown color space", () => {
   assert.equal("colorSpace" in parseProbe(json), false);
 });
 
+const video = (extra: Record<string, string>): ProbeJson => ({
+  streams: [{ codec_type: "video", width: 10, height: 10, avg_frame_rate: "30/1", ...extra }],
+  format: { duration: "8" },
+});
+
+test("records the video stream's frame count from nb_frames", () => {
+  assert.equal(parseProbe(video({ nb_frames: "240", duration: "9" })).frames, 240);
+});
+
+test("derives the frame count from the stream duration when nb_frames is absent", () => {
+  assert.equal(parseProbe(video({ duration: "7.99" })).frames, 239);
+  assert.equal("frames" in parseProbe(video({})), false);
+});
+
+test("flags variable frame rate when r_frame_rate and avg_frame_rate differ by over 1%", () => {
+  assert.equal(parseProbe(video({ r_frame_rate: "60/1" })).vfr, true);
+  assert.equal("vfr" in parseProbe(video({ r_frame_rate: "30/1" })), false);
+  assert.equal("vfr" in parseProbe(video({ r_frame_rate: "30000/1001" })), false);
+});
+
 test("rejects input without a video stream", () => {
   assert.throws(() => parseProbe({ streams: [{ codec_type: "audio" }], format: {} }), /no video/);
 });

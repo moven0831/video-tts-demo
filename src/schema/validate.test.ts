@@ -23,6 +23,20 @@ test("the fixture plan has no errors or warnings", () => {
   assert.deepEqual(validatePlan(base, probe), { errors: [], warnings: [] });
 });
 
+test("warns when the plan's source differs from the probe", () => {
+  const { errors, warnings } = check((p) => {
+    p.meta.source.width = 1920;
+    p.meta.source.fps = 60;
+  });
+  assert.deepEqual(errors, []);
+  assert.equal(warnings.length, 2);
+  assert.match(warnings[0], /meta\.source\.width is 1920 but the recording is \d+/);
+  assert.match(warnings[1], /meta\.source\.fps is 60 but the recording is/);
+  assert.match(warnings[1], /replaced after planning/);
+  assert.equal(check((p) => (p.meta.source.duration += 0.01)).warnings.length, 0);
+  assert.equal(check((p) => (p.meta.source.duration += 1)).warnings.length, 1);
+});
+
 test("clampBox keeps a box inside the frame and drops one outside it", () => {
   assert.deepEqual(clampBox({ x: 10, y: 10, w: 20, h: 20 }, probe), { x: 10, y: 10, w: 20, h: 20 });
   assert.deepEqual(clampBox({ x: 1200, y: 700, w: 200, h: 100 }, probe), {

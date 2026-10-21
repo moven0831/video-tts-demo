@@ -28,6 +28,12 @@ export async function runProbe(paths: Paths, opts: { force: boolean }): Promise<
   await mkdir(paths.build, { recursive: true });
   const probe = Probe.parse(await probeVideo(paths.input));
   await writeJson(paths.probe, probe);
+  if (probe.vfr) {
+    console.warn(
+      "warning: the recording has a variable frame rate, so freeze frames and timestamps can drift; " +
+        "re-encode it first: ffmpeg -i in.mov -vf fps=30 -c:v libx264 -crf 16 input.mp4",
+    );
+  }
   const scenes = SceneCuts.parse(await detectScenes(paths.input));
   await writeJson(paths.scenes, scenes);
   const motion = Motion.parse(await analyseMotion(paths.input, probe));
