@@ -6,9 +6,12 @@
       "Read(./.env.*)",
       "Read(**/.env)",
       "Read(**/.env.*)",
-      "Bash(* --node-options*)",
-      "Bash(* --prefix*)",
-      "Bash(* --script-shell*)"
+      "Bash(npm *--node-options*)",
+      "Bash(npm *--prefix*)",
+      "Bash(npm *--script-shell*)",
+      "Bash(npx *--node-options*)",
+      "Bash(npx *--prefix*)",
+      "Bash(npx *--script-shell*)"
     ],
     "allow": [
       "Bash(npm run probe -- *)",
