@@ -3,10 +3,16 @@
   "permissions": {
     "deny": ["Read(./.env)", "Read(./.env.*)"],
     "allow": [
-      "Bash(npm run *)",
-      "Bash(npx hyperframes *)",
-      "Bash(ffmpeg *)",
-      "Bash(ffprobe *)"
+      "Bash(npm run probe *)",
+      "Bash(npm run plan:check *)",
+      "Bash(npm run timeline *)",
+      "Bash(npm run compose *)",
+      "Bash(npm run render *)",
+      "Bash(npm run mux *)",
+      "Bash(npm run typecheck)",
+      "Bash(npm test)",
+      "Bash(npm run test:smoke)",
+      "Bash(npm run check)"
     ]
   },
   "env": {
