@@ -5,9 +5,12 @@ writes an edit plan from sampled frames, ElevenLabs voices it, HyperFrames rende
 
 ## Stages
 
-`npm run probe | plan | plan:check | voice | timeline | compose | render | mux | demo -- <name>`
+Each stage is `npm run <stage> -- <name>`, with `--` right after the stage name (the permission
+rules in `.claude/settings.json` match that form). Stages: probe, plan, plan:check, voice, timeline,
+compose, render, mux, demo.
 
-- `demo` runs the whole chain, skipping stages whose input hash is unchanged.
+- `demo` runs the whole chain, skipping stages whose input hash is unchanged. `plan` and `voice`
+  exit 3 when they stopped short of spending; `demo` stops there until it gets `--yes`.
 - `clean`: `--all` wipes out/ and build/ but keeps build/cache unless `--cache`.
 - `/demo-video` is the interactive front end; `npm run plan` is the API one.
 

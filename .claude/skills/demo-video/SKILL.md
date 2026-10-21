@@ -71,6 +71,9 @@ approves the spend. Only then:
 npm run voice -- <name> --yes
 ```
 
+Without `--yes`, `voice` still rewrites `voice.json` when every line is already cached; otherwise it
+prints the spend and exits 3.
+
 For voice choice, SFX prompts, or music, consult the ElevenLabs skills (`text-to-speech`,
 `sound-effects`, `music`) and, to audition, `npm run voice -- <name> --audition "<text>" --voices a,b`.
 The ElevenLabs MCP server in `.mcp.json` can browse voices; it is optional and needs OAuth.
