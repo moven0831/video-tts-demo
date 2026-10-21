@@ -1,0 +1,13 @@
+import { EditPlan } from "../schema/edit-plan.ts";
+import { writeHf } from "../compose/write.ts";
+import { Timeline } from "../timeline/types.ts";
+import { readJson } from "../util/fs.ts";
+import { parseProjectArgs } from "../util/project.ts";
+
+const { paths } = parseProjectArgs(process.argv.slice(2), {});
+
+const timeline = await readJson(paths.timeline, Timeline);
+const plan = await readJson(paths.plan, EditPlan);
+const warnings = await writeHf(paths.build, paths.hf, paths.input, timeline, plan);
+for (const warning of warnings) console.warn(`warning: ${warning}`);
+console.log(`composed ${paths.hf}`);
