@@ -1,6 +1,21 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { run } from "./exec.ts";
+import { run, runBuffer } from "./exec.ts";
+
+test("runBuffer returns binary stdout untouched", async () => {
+  const out = await runBuffer(process.execPath, [
+    "-e",
+    "process.stdout.write(Buffer.from([0, 255, 128, 10]))",
+  ]);
+  assert.deepEqual([...out], [0, 255, 128, 10]);
+});
+
+test("runBuffer rejects with the stderr tail on a nonzero exit", async () => {
+  await assert.rejects(
+    runBuffer(process.execPath, ["-e", "console.error('boom'); process.exit(2)"]),
+    /exited with code 2\nboom/,
+  );
+});
 
 test("captures stdout and stderr", async () => {
   const result = await run(process.execPath, [

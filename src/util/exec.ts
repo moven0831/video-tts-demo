@@ -27,3 +27,27 @@ export function run(
     });
   });
 }
+
+export function runBuffer(
+  cmd: string,
+  args: string[],
+  opts: { env?: Record<string, string>; cwd?: string } = {},
+): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, {
+      cwd: opts.cwd,
+      env: { ...process.env, ...opts.env },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const out: Buffer[] = [];
+    let stderr = "";
+    child.stdout.on("data", (chunk: Buffer) => out.push(chunk));
+    child.stderr.setEncoding("utf8").on("data", (chunk: string) => (stderr += chunk));
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) return resolve(Buffer.concat(out));
+      const tail = stderr.trimEnd().split("\n").slice(-TAIL_LINES).join("\n");
+      reject(new Error(`${cmd} exited with code ${code}\n${tail}`));
+    });
+  });
+}
