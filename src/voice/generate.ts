@@ -78,9 +78,16 @@ export function resolveVoice(
   };
 }
 
-export function lineKey(line: NarrationLine, voiceId: string, modelId: string): string {
+// Auditions skip alignment, so they get their own keys; the real run's keys stay as they were.
+export function lineKey(
+  line: NarrationLine,
+  voiceId: string,
+  modelId: string,
+  audition = false,
+): string {
   return sha256(
     stableStringify({
+      ...(audition ? { audition } : {}),
       voiceId,
       modelId,
       text: line.text,
@@ -203,7 +210,7 @@ export async function runAudition(
   const dir = paths.cacheDir("voice");
   const line: NarrationLine = { id: "audition", text: opts.text };
   for (const voiceId of opts.voiceIds) {
-    const key = lineKey(line, voiceId, opts.modelId);
+    const key = lineKey(line, voiceId, opts.modelId, true);
     if (!opts.yes) {
       const cached = await isCached(dir, key, "mp3");
       opts.log(`${voiceId}  ${opts.text.length} chars  ${cached ? "cached" : "new"}`);

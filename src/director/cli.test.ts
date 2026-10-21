@@ -129,6 +129,22 @@ test("plan --from-narration seeds a valid plan without the API", async () => {
   });
 });
 
+test("plan --from-narration slugifies the project name for meta.project", async () => {
+  for (const [dir, slug] of [["My_Cool Demo", "my-cool-demo"], ["Café--Tour", "caf-tour"], ["!!!", "demo"]]) {
+    const root = await mkdtemp(join(tmpdir(), "proj-"));
+    try {
+      const paths = projectPaths(join(root, dir));
+      await mkdir(paths.build, { recursive: true });
+      await cp("test/fixtures/probe.json", paths.probe);
+      await runPlanFromNarration(paths, "One.", { force: false }, () => {});
+      const written = JSON.parse(await readFile(paths.plan, "utf8"));
+      assert.equal(written.meta.project, slug, dir);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }
+});
+
 test("plan --from-narration keeps hand edits without --force and needs the probe", async () => {
   await withNamedProject(async (paths) => {
     await writeFile(paths.plan, "hand edits");

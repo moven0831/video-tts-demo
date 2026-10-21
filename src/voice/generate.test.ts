@@ -279,6 +279,29 @@ test("audition renders each voice into build/audition and needs --yes", async (t
   assert.equal(calls.length, 2);
 });
 
+test("a real run after an audition of the same text does not trip over the audition's cache entry", async (t) => {
+  const { paths, log, duration } = await setup(t);
+  const plan = structuredClone(fixture);
+  plan.intro = undefined;
+  plan.outro = undefined;
+  plan.audio.sfx = [];
+  plan.chapters = [
+    {
+      ...plan.chapters[0],
+      card: undefined,
+      scenes: [{ ...plan.chapters[0].scenes[0], narration: [plan.chapters[0].scenes[0].narration[0]] }],
+    },
+  ];
+  const [only] = narrationLines(plan);
+  const { voiceId, modelId } = plan.audio.voice;
+  const { voice, calls } = fakeVoice();
+  await runAudition({ voice }, paths, { text: only.text, voiceIds: [voiceId], modelId, yes: true, log });
+
+  const manifest = await runVoice(plan, { voice, duration }, paths, { yes: true, dryRun: false, log, env: {} });
+  assert.equal(manifest?.lines[only.id].words[0].text, only.text.split(" ")[0]);
+  assert.equal(calls.filter((c) => c.method === "tts").length, 2);
+});
+
 test("\"default\" voice and model resolve from env, then the built-in fallbacks", async (t) => {
   const plan = structuredClone(fixture);
   plan.audio.voice = { voiceId: "default", modelId: "default" };

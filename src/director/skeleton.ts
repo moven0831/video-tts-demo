@@ -18,7 +18,8 @@ function resolveStarts(segments: Segment[], duration: number) {
       last = at;
     } else {
       if (at !== undefined) {
-        warnings.push(`block ${i + 1}: ignored timestamp ${clock(at)}, not inside the recording`);
+        const why = at >= duration ? "not inside the recording" : "out of order";
+        warnings.push(`block ${i + 1}: ignored timestamp ${clock(at)}, ${why}`);
       }
       starts.push(undefined);
     }
@@ -41,6 +42,31 @@ function resolveStarts(segments: Segment[], duration: number) {
     i = j;
   }
   return { starts: starts as number[], warnings };
+}
+
+const MAX_LINE_CHARS = 600;
+
+// The schema caps a line at MAX_LINE_CHARS, so a long block becomes several lines.
+function splitLines(text: string, block: number): string[] {
+  const flat = text.replace(/\s*\n\s*/g, " ");
+  if (flat.length <= MAX_LINE_CHARS) return [flat];
+  const lines: string[] = [];
+  let current = "";
+  for (const sentence of flat.split(/(?<=[.!?])\s+/)) {
+    if (sentence.length > MAX_LINE_CHARS) {
+      throw new Error(
+        `block ${block} has a sentence over ${MAX_LINE_CHARS} characters; split it with punctuation`,
+      );
+    }
+    if (current !== "" && current.length + 1 + sentence.length > MAX_LINE_CHARS) {
+      lines.push(current);
+      current = sentence;
+    } else {
+      current = current === "" ? sentence : `${current} ${sentence}`;
+    }
+  }
+  lines.push(current);
+  return lines;
 }
 
 export function skeletonFromNarration(
@@ -77,7 +103,10 @@ export function skeletonFromNarration(
         scenes: segments.map((segment, i) => ({
           id: `s${i + 1}`,
           source: { in: starts[i], out: starts[i + 1] ?? probe.duration },
-          narration: [{ id: `s${i + 1}-l1`, text: segment.text.replace(/\s*\n\s*/g, " ") }],
+          narration: splitLines(segment.text, i + 1).map((text, j) => ({
+            id: `s${i + 1}-l${j + 1}`,
+            text,
+          })),
         })),
       },
     ],

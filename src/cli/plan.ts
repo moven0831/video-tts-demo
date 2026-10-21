@@ -74,8 +74,14 @@ export async function runPlanFromNarration(
     throw new Error(`${paths.plan} exists and may hold hand edits; pass --force to overwrite it`);
   }
   const words = paths.name.replace(/[-_]+/g, " ").trim();
+  const project =
+    paths.name
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "") || "demo";
   const { plan, warnings } = skeletonFromNarration(text, await readJson(paths.probe, Probe), {
-    project: paths.name,
+    project,
     title: words.charAt(0).toUpperCase() + words.slice(1),
     voiceId: "default",
     modelId: "default",
