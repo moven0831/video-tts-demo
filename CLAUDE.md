@@ -10,7 +10,8 @@ rules in `.claude/settings.json` match that form). Stages: probe, plan, plan:che
 compose, render, mux, demo.
 
 - `demo` runs the whole chain, skipping stages whose input hash is unchanged. `plan` and `voice`
-  exit 3 when they stopped short of spending; `demo` stops there until it gets `--yes`.
+  exit 3 when they stopped short of spending; `demo` stops there until it gets `--yes`. One
+  `demo --plan --yes` approves both the director (Anthropic) and the voice (ElevenLabs) spend.
 - `clean`: `--all` wipes out/ and build/ but keeps build/cache unless `--cache`.
 - `/demo-video` is the interactive front end; `npm run plan` is the API one.
 

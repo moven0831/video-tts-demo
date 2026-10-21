@@ -100,7 +100,9 @@ Render at full quality with `npm run render -- <name>` (no `--draft`), then `npm
 Outputs: `out/final.mp4`, `out/final.srt`, `out/final.vtt`. `npm run demo -- <name>` runs all stages
 and skips those whose inputs have not changed; pass `--draft` or `--force` as needed. Add `--yes` to
 let it spend after the voice gate (`npm run demo -- <name> --yes`). Add `--plan` to run the API
-director when `edit-plan.json` is missing; that also needs `--yes`.
+director when `edit-plan.json` is missing; that also needs `--yes`. Note that `demo --plan --yes`
+approves both the director spend and the voice spend at once, unlike the step-by-step flow, which
+gates them separately; only use it after the user has agreed to both.
 
 ## Rules
 

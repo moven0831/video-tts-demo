@@ -109,6 +109,8 @@ Each stage is a thin CLI in `src/cli/<stage>.ts` over pure, tested modules. Ever
      - V <= S: play at rate 1 for S (`hold`), or cut the tail to V + 0.8 s (`trim`).
      - V > S, `freeze` (default): play S, then hold a still of the last frame for V - S + 0.6 s. Warn above 6 s.
      - V > S, `slow`: rate = max(0.5, S / V); any remainder becomes a freeze.
+     - A segment with a freeze records `freeze.at`: the source time of the last frame the video plays, `(ceil(out * fps) - 1) / fps` using the probe's fps. Compose extracts the still at that frame, clamped to the video stream's last frame (`probe.frames`), and fails with the scene and time if ffmpeg writes nothing. Probe records `vfr: true` when `r_frame_rate` and `avg_frame_rate` differ by over 1% and recommends a constant-frame-rate re-encode.
+     - Card ids are `intro`, `outro` and `chapter-<id>`. The camera resets (instant key) when a card becomes opaque, no later than the card's end; a card shorter than the transition into it warns.
      - Narration line `at` (source time) is a lower bound for the line start; lines never overlap.
    - Camera (`camera.ts`): stage is 1920x1080; source is fit with letterbox (`sourceToStage`). Each keyframe box is expanded to at least 10% of the frame, to 16:9, and clamped inside the frame. scale = clamp(min(W / w, H / h), 1, style.camera.maxZoom); translate so the box centre sits at stage centre, clamped so no letterbox gap opens. `transform-origin: 0 0`. Moves last `style.camera.moveSec` with `power2.inOut`. `box: null` returns to full frame. Source times map through rate changes and freezes.
    - Clicks and callouts map the same way; callout labels are placed on `side` (auto picks the side with most room).
@@ -125,7 +127,7 @@ Each stage is a thin CLI in `src/cli/<stage>.ts` over pure, tested modules. Ever
    - Theme: `style.theme`, `style.accent`, `style.font` drive CSS variables. Cards: big title, subtitle, accent bar; enter and exit with a short slide and fade.
 6. render (`src/render/render.ts`): `npx hyperframes lint build/hf --json` (fail on `ok: false` or any warning), then `npx hyperframes render build/hf --output build/render.mp4 --fps 30 --quality <looks|draft> --video-frame-format png --workers 1 --strict`, with the HyperFrames env flags; success is exit 0 plus an ffprobe of the output. Arguments passed as an array, never through a shell.
 7. mux (`src/render/mux.ts`, `contact.ts`): two-pass `loudnorm` to -14 LUFS / -1.5 dBTP with `-c:v copy` and `-map_metadata -1` → `out/final.mp4`; copy captions to `out/final.srt` and `out/final.vtt`; contact sheet `out/contact.jpg` via `fps=1/5,scale=320:-1,tile=6x5`.
-8. demo (`src/cli/demo.ts`): runs probe → plan (only if `edit-plan.json` is missing and `--plan` is given) → plan:check → voice → timeline → compose → render → mux, skipping stages whose `build/<stage>.hash` matches. `--force` reruns all; `--draft` renders draft quality. Spending stages print what they will spend and require `--yes` when not cached.
+8. demo (`src/cli/demo.ts`): runs probe → plan (only if `edit-plan.json` is missing and `--plan` is given) → plan:check → voice → timeline → compose → render → mux, skipping stages whose `build/<stage>.hash` matches. `--force` reruns all; `--draft` renders draft quality. Spending stages print what they will spend and require `--yes` when not cached. `plan` and `voice` exit 3 when they stopped short of spending; `demo` turns that into an error until it gets `--yes`, and its single `--yes` approves both the director (`--plan`) and the voice spend. All CLIs print failures as one `error: <message>` line with exit code 1.
 
 ## edit-plan.json schema (`src/schema/edit-plan.ts`, Zod 4)
 
@@ -193,7 +195,8 @@ export const EditPlan = z.object({
   chapters: z.array(Chapter).min(1),
   audio: z.object({
     voice: z.object({ voiceId: z.string().min(1), modelId: z.string().min(1) }),
-    music: z.object({ file: z.string().nullable().default(null), prompt: z.string().max(400).optional(), gainDb: z.number().default(-18), duckDb: z.number().default(-12) }),
+    // file is a bare filename in the project's music/ dir (no slash, backslash, or leading dot).
+    music: z.object({ file: z.string().regex(/^[^/\\.][^/\\]*$/).nullable().default(null), prompt: z.string().max(400).optional(), gainDb: z.number().default(-18), duckDb: z.number().default(-12) }),
     sfx: z.array(z.object({ scene: slug, t: sec, prompt: z.string().min(1).max(200), sec: sec.max(30) })).default([]),
   }),
 });
@@ -239,7 +242,7 @@ Config:
 - HyperFrames plugin pinned to the CLI version: `claude plugin marketplace add heygen-com/hyperframes#v0.8.183`, then `claude plugin install hyperframes@hyperframes --scope project`.
 - ElevenLabs skills via `npx skills add elevenlabs/skills`: `text-to-speech`, `sound-effects`, `music`, `speech-to-text`. The existing `agents` skill stays.
 - `.mcp.json`: ElevenLabs hosted MCP (`https://api.elevenlabs.io/v1/mcp`, OAuth). Optional, for browsing voices interactively. The pipeline uses the SDK.
-- `.claude/settings.json`: deny `Read(./.env)` and `Read(./.env.*)`; allow `Bash(npm run *)`, `Bash(npx hyperframes *)`, `Bash(ffmpeg *)`, `Bash(ffprobe *)`; env `HYPERFRAMES_NO_UPDATE_CHECK=1`, `HYPERFRAMES_SKIP_SKILLS=1`.
+- `.claude/settings.json`: deny `Read(./.env)` and `Read(./.env.*)`; allow only the non-spending scripts, each anchored on `--` right after the script name (`Bash(npm run probe -- *)`, `plan:check`, `timeline`, `compose`, `render`, `mux`, plus exact `npm run typecheck`, `npm test`, `npm run test:smoke`, `npm run check`). Never `Bash(npm run *)`: it would auto-approve `plan`, `voice` and `demo`, which spend credits, and `npm run x --node-options=...` style flags would slip through. Deny `Bash(npm *--node-options*)`, `--prefix` and `--script-shell`, and the same three for `npx`; they are scoped to npm and npx so commit or PR text that mentions them still runs. Env `HYPERFRAMES_NO_UPDATE_CHECK=1`, `HYPERFRAMES_SKIP_SKILLS=1`.
 - `.claude/skills/demo-video/SKILL.md` gated flow:
   0. Confirm `projects/<name>/input.mp4`, read `brief.md`, one question round (audience, tone, target length, voice, music). Say that frames are sent to Anthropic.
   1. `npm run probe -- <name>`; read `contact.jpg`, `scenes.json`, `motion.json`, sheets.
