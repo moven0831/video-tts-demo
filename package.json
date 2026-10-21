@@ -12,6 +12,8 @@
   },
   "devDependencies": {
     "@types/node": "^20.19.43",
+    "gsap": "3.15.0",
+    "hyperframes": "0.8.183",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }

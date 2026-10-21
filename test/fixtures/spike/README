@@ -1,0 +1,2 @@
+Re-run: bash test/fixtures/spike/make-assets.sh && HYPERFRAMES_NO_UPDATE_CHECK=1 HYPERFRAMES_SKIP_SKILLS=1 npx hyperframes render test/fixtures/spike --output /tmp/spike.mp4 --fps 30 --quality looks --video-frame-format png --workers 1 --strict
+Results and decision are in docs/spike.md.
