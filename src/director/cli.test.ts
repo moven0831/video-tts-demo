@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { checkPlan } from "../cli/plan-check.ts";
-import { runPlan } from "../cli/plan.ts";
+import { runPlan, runPlanFromNarration } from "../cli/plan.ts";
 import type { Probe } from "../schema/artifacts.ts";
 import { projectPaths } from "../util/project.ts";
 import type { PlanClient } from "./plan.ts";
@@ -95,6 +95,44 @@ test("plan names the probe command when inputs are missing", async () => {
       runPlan(paths, fakeClient().client, { yes: true, force: false }, () => {}),
       /npm run probe -- /,
     );
+  });
+});
+
+async function withNamedProject(run: (paths: ReturnType<typeof projectPaths>) => Promise<void>) {
+  const root = await mkdtemp(join(tmpdir(), "proj-"));
+  try {
+    const paths = projectPaths(join(root, "demo"));
+    await mkdir(paths.build, { recursive: true });
+    await cp("test/fixtures/probe.json", paths.probe);
+    await run(paths);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+test("plan --from-narration seeds a valid plan without the API", async () => {
+  await withNamedProject(async (paths) => {
+    const text = "# 0:00\nWelcome to the tour.\n\n# 0:04\nThat is all.";
+    await runPlanFromNarration(paths, text, { force: false }, () => {});
+    const written = JSON.parse(await readFile(paths.plan, "utf8"));
+    assert.equal(written.meta.title, "Welcome to the tour.");
+    assert.deepEqual(
+      written.chapters[0].scenes.map((s: { source: { in: number; out: number } }) => [s.source.in, s.source.out]),
+      [[0, 4], [4, 8]],
+    );
+    assert.equal(checkPlan(written, probe).ok, true);
+  });
+});
+
+test("plan --from-narration keeps hand edits without --force and needs the probe", async () => {
+  await withNamedProject(async (paths) => {
+    await writeFile(paths.plan, "hand edits");
+    await assert.rejects(runPlanFromNarration(paths, "One.", { force: false }, () => {}), /--force/);
+    assert.equal(await readFile(paths.plan, "utf8"), "hand edits");
+    await runPlanFromNarration(paths, "One.", { force: true }, () => {});
+    assert.equal(JSON.parse(await readFile(paths.plan, "utf8")).meta.title, "One.");
+    await rm(paths.probe);
+    await assert.rejects(runPlanFromNarration(paths, "One.", { force: true }, () => {}), /npm run probe/);
   });
 });
 

@@ -5,7 +5,7 @@ writes an edit plan from sampled frames, ElevenLabs voices it, HyperFrames rende
 
 ## Stages
 
-`npm run probe | plan | plan:check | voice | compose | render | mux | demo -- <name>`
+`npm run probe | plan | plan:check | voice | timeline | compose | render | mux | demo -- <name>`
 
 - `demo` runs the whole chain and skips stages whose input hash is unchanged.
 - `/demo-video` is the interactive front end; `npm run plan` is the API one.

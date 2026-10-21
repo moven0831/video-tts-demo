@@ -7,6 +7,7 @@
     "plan": "tsx --env-file-if-exists=.env.local src/cli/plan.ts",
     "plan:check": "tsx src/cli/plan-check.ts",
     "voice": "tsx --env-file-if-exists=.env.local src/cli/voice.ts",
+    "timeline": "tsx src/cli/timeline.ts",
     "compose": "tsx src/cli/compose.ts",
     "render": "tsx src/cli/render.ts",
     "mux": "tsx src/cli/mux.ts",
@@ -16,7 +17,7 @@
     "hf": "HYPERFRAMES_NO_UPDATE_CHECK=1 HYPERFRAMES_SKIP_SKILLS=1 hyperframes",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test 'src/**/*.test.ts'",
-    "test:smoke": "tsx --test test/smoke.test.ts",
+    "test:smoke": "tsx --test test/smoke.test.ts test/demo.test.ts",
     "check": "npm run typecheck && npm test && npm run test:smoke"
   },
   "dependencies": {

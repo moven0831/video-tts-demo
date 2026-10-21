@@ -11,6 +11,7 @@ import {
   type PlanClient,
 } from "../director/plan.ts";
 import { buildPlanRequest } from "../director/prompt.ts";
+import { skeletonFromNarration } from "../director/skeleton.ts";
 import { Motion, Probe, SceneCuts } from "../schema/artifacts.ts";
 import { readJson, writeAtomic } from "../util/fs.ts";
 import { parseProjectArgs, projectPaths } from "../util/project.ts";
@@ -58,10 +59,39 @@ export async function runPlan(
   log(`wrote ${paths.plan}`);
 }
 
+export async function runPlanFromNarration(
+  paths: Paths,
+  text: string,
+  opts: { force: boolean },
+  log: (line: string) => void = console.log,
+): Promise<void> {
+  if (!existsSync(paths.probe)) {
+    throw new Error(`${paths.probe} is missing; run \`npm run probe -- ${paths.name}\` first`);
+  }
+  if (existsSync(paths.plan) && !opts.force) {
+    throw new Error(`${paths.plan} exists and may hold hand edits; pass --force to overwrite it`);
+  }
+  const firstLine = text.split(/\r?\n/).find((line) => line.trim() !== "" && !line.trimStart().startsWith("#"));
+  const plan = skeletonFromNarration(text, await readJson(paths.probe, Probe), {
+    project: paths.name,
+    title: firstLine?.trim().slice(0, 60) || paths.name,
+    voiceId: "default",
+    modelId: "default",
+  });
+  await writeAtomic(paths.plan, `${JSON.stringify(plan, null, 2)}\n`);
+  log(`wrote ${paths.plan}`);
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const { paths, values } = parseProjectArgs(process.argv.slice(2), {
     yes: { type: "boolean" },
     force: { type: "boolean" },
+    "from-narration": { type: "string" },
   });
-  await runPlan(paths, new Anthropic(), { yes: !!values.yes, force: !!values.force });
+  if (values["from-narration"] !== undefined) {
+    const text = await readFile(values["from-narration"], "utf8");
+    await runPlanFromNarration(paths, text, { force: !!values.force });
+  } else {
+    await runPlan(paths, new Anthropic(), { yes: !!values.yes, force: !!values.force });
+  }
 }

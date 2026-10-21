@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { VoiceManifest } from "../src/schema/artifacts.ts";
 import { Timeline } from "../src/timeline/types.ts";
 import { run } from "../src/util/exec.ts";
 
@@ -44,7 +45,7 @@ async function meanLuma(video: string, at: number): Promise<number> {
 
 const reason = await skipReason();
 
-test("compose, render and mux produce a finished video", { skip: reason, timeout: 240_000 }, async (t) => {
+test("probe, timeline, compose, render and mux produce a finished video", { skip: reason, timeout: 240_000 }, async (t) => {
   const dir = await mkdtemp(join(tmpdir(), "smoke-"));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const build = join(dir, "build");
@@ -55,27 +56,27 @@ test("compose, render and mux produce a finished video", { skip: reason, timeout
     "-c:v", "libx264", "-pix_fmt", "yuv420p", join(dir, "input.mp4"),
   ]);
   await copyFile(fixture("edit-plan.json"), join(dir, "edit-plan.json"));
-  await copyFile(fixture("timeline.json"), join(build, "timeline.json"));
-  await copyFile(fixture("captions.srt"), join(build, "captions.srt"));
-  await copyFile(fixture("captions.vtt"), join(build, "captions.vtt"));
+  await copyFile(fixture("voice.json"), join(build, "voice.json"));
 
-  const timeline = Timeline.parse(JSON.parse(await readFile(fixture("timeline.json"), "utf8")));
-  const tones = [...timeline.narration, ...timeline.sfx];
-  for (const tone of tones) {
-    const file = join(build, tone.file);
+  const voice = VoiceManifest.parse(JSON.parse(await readFile(fixture("voice.json"), "utf8")));
+  for (const clip of [...Object.values(voice.lines), ...Object.values(voice.sfx)]) {
+    const file = join(build, clip.file);
     await mkdir(dirname(file), { recursive: true });
     await run("ffmpeg", [
-      "-y", "-v", "error", "-f", "lavfi", "-i", `sine=frequency=440:duration=${tone.duration}`,
+      "-y", "-v", "error", "-f", "lavfi", "-i", `sine=frequency=440:duration=${clip.duration}`,
       "-c:a", "libmp3lame", file,
     ]);
   }
 
   const stage = (name: string, ...args: string[]) =>
     run(TSX, [join(ROOT, "src/cli", `${name}.ts`), dir, ...args]);
+  await stage("probe");
+  await stage("timeline");
   await stage("compose");
   await stage("render", "--draft");
   await stage("mux");
 
+  const timeline = Timeline.parse(JSON.parse(await readFile(join(build, "timeline.json"), "utf8")));
   const final = join(dir, "out/final.mp4");
   const duration = Number(await probe(final, ["-show_entries", "format=duration", "-of", "csv=p=0"]));
   assert.ok(Math.abs(duration - timeline.total) <= 0.1, `duration ${duration} vs ${timeline.total}`);

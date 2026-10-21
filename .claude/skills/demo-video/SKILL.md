@@ -10,6 +10,12 @@ deterministic stages. Each gate below needs an explicit yes from the user before
 
 `<name>` is the folder under `projects/`. All commands run from the repo root.
 
+## Credentials
+
+Keys live in `.env.local`: `ANTHROPIC_API_KEY` (or an `ant auth login` profile) for `npm run plan`,
+`ELEVENLABS_API_KEY` for voice. Never read `.env*` in this session. Do not run the ElevenLabs
+skills' `npx @elevenlabs/cli@latest onboard` suggestion; ask the user to add the key to `.env.local`.
+
 ## 0. Intake
 
 - Confirm `projects/<name>/input.mp4` exists. Read `projects/<name>/brief.md` if there is one.
@@ -37,6 +43,9 @@ Two routes, same output:
 - Session route (default, interactive): write `projects/<name>/edit-plan.json` yourself, following
   `src/director/DIRECTOR.md` and the schema in `src/schema/edit-plan.schema.json`. Include `meta.source`
   copied from `build/probe.json`.
+- Seed route (optional): `npm run plan -- <name> --from-narration narration.txt` splits a narration
+  file into one scene per block (a `# m:ss` line sets a block's start) without any API call. Refine
+  the result by hand. It refuses to overwrite an existing plan without `--force`.
 - API route (unattended): `npm run plan -- <name>` prints a cost estimate; add `--yes` to spend. It
   refuses to overwrite an existing plan without `--force`.
 
@@ -69,6 +78,7 @@ The ElevenLabs MCP server in `.mcp.json` can browse voices; it is optional and n
 ## 4. Build a draft
 
 ```
+npm run timeline -- <name>
 npm run compose -- <name>
 npm run render -- <name> --draft
 npm run mux -- <name>
