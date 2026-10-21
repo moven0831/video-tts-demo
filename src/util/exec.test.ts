@@ -8,6 +8,15 @@ test("runInherited resolves to the exit code, zero or not", async () => {
   await assert.rejects(runStreaming(process.execPath, ["-e", "process.exit(3)"]), /exited with code 3/);
 });
 
+test("runInherited gives the child no stdin, so prompts cannot block it", async () => {
+  const script = "process.stdin.on('end', () => process.exit(7)); process.stdin.resume()";
+  let timer: NodeJS.Timeout | undefined;
+  const hung = new Promise<number>((resolve) => (timer = setTimeout(() => resolve(-1), 3000)));
+  const code = await Promise.race([runInherited(process.execPath, ["-e", script]), hung]);
+  clearTimeout(timer);
+  assert.equal(code, 7);
+});
+
 test("runBuffer returns binary stdout untouched", async () => {
   const out = await runBuffer(process.execPath, [
     "-e",

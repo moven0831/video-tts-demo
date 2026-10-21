@@ -55,13 +55,14 @@ export function runBuffer(cmd: string, args: string[], opts: Opts = {}): Promise
   });
 }
 
-// Output goes straight to the terminal; the caller decides what a non-zero code means.
+// Output goes straight to the terminal; the caller decides what a non-zero code means. stdin is
+// closed so a child's interactive prompt (HyperFrames' feedback survey) cannot block it.
 export function runInherited(cmd: string, args: string[], opts: Opts = {}): Promise<number> {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, {
       cwd: opts.cwd,
       env: { ...process.env, ...opts.env },
-      stdio: "inherit",
+      stdio: ["ignore", "inherit", "inherit"],
     });
     child.on("error", reject);
     child.on("close", (code) => resolve(code ?? 1));
