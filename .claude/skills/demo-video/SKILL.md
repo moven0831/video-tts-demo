@@ -92,7 +92,9 @@ cached). For layout, motion, or composition questions, use the `/hyperframes:*` 
 
 Render at full quality with `npm run render -- <name>` (no `--draft`), then `npm run mux -- <name>`.
 Outputs: `out/final.mp4`, `out/final.srt`, `out/final.vtt`. `npm run demo -- <name>` runs all stages
-and skips those whose inputs have not changed; pass `--draft` or `--force` as needed.
+and skips those whose inputs have not changed; pass `--draft` or `--force` as needed. Add `--yes` to
+let it spend after the voice gate (`npm run demo -- <name> --yes`). Add `--plan` to run the API
+director when `edit-plan.json` is missing; that also needs `--yes`.
 
 ## Rules
 

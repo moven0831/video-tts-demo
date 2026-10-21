@@ -7,7 +7,8 @@ writes an edit plan from sampled frames, ElevenLabs voices it, HyperFrames rende
 
 `npm run probe | plan | plan:check | voice | timeline | compose | render | mux | demo -- <name>`
 
-- `demo` runs the whole chain and skips stages whose input hash is unchanged.
+- `demo` runs the whole chain, skipping stages whose input hash is unchanged.
+- `clean`: `--all` wipes out/ and build/ but keeps build/cache unless `--cache`.
 - `/demo-video` is the interactive front end; `npm run plan` is the API one.
 
 ## Rules
@@ -21,4 +22,4 @@ writes an edit plan from sampled frames, ElevenLabs voices it, HyperFrames rende
 - Anything that spends credits (`plan --yes`, `voice --yes`) needs an explicit yes from the user.
 - Secrets live in `.env.local`; never read or print them.
 
-Check: `npm run check` (typecheck, unit tests, smoke). Unit tests need no network or keys.
+Check: `npm run check` (typecheck, tests, smoke). Tests need no network or keys.

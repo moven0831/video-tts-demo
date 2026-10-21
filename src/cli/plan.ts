@@ -39,7 +39,7 @@ export async function runPlan(
     scenes: await readJson(paths.scenes, SceneCuts),
     motion: await readJson(paths.motion, Motion),
     brief: existsSync(paths.brief) ? await readFile(paths.brief, "utf8") : undefined,
-    sheets: await loadSheets(paths.sheets),
+    sheets: await loadSheets(index, paths.build),
   };
   const cacheDir = paths.cacheDir("plan");
   const params = buildPlanRequest(input);
@@ -71,14 +71,15 @@ export async function runPlanFromNarration(
   if (existsSync(paths.plan) && !opts.force) {
     throw new Error(`${paths.plan} exists and may hold hand edits; pass --force to overwrite it`);
   }
-  const firstLine = text.split(/\r?\n/).find((line) => line.trim() !== "" && !line.trimStart().startsWith("#"));
-  const plan = skeletonFromNarration(text, await readJson(paths.probe, Probe), {
+  const words = paths.name.replace(/[-_]+/g, " ").trim();
+  const { plan, warnings } = skeletonFromNarration(text, await readJson(paths.probe, Probe), {
     project: paths.name,
-    title: firstLine?.trim().slice(0, 60) || paths.name,
+    title: words.charAt(0).toUpperCase() + words.slice(1),
     voiceId: "default",
     modelId: "default",
   });
   await writeAtomic(paths.plan, `${JSON.stringify(plan, null, 2)}\n`);
+  for (const warning of warnings) log(`warning: ${warning}`);
   log(`wrote ${paths.plan}`);
 }
 

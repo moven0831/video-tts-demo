@@ -3,8 +3,10 @@ import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { spawnSync } from "node:child_process";
 import { test } from "node:test";
 import { checkPlan } from "../cli/plan-check.ts";
+import { runProbe } from "../probe/run.ts";
 import { runPlan, runPlanFromNarration } from "../cli/plan.ts";
 import type { Probe } from "../schema/artifacts.ts";
 import { projectPaths } from "../util/project.ts";
@@ -48,7 +50,7 @@ async function withProject(run: (paths: ReturnType<typeof projectPaths>) => Prom
     const tiles = [{ t: 0, x: 0, y: 0, w: 640, h: 360 }];
     await writeFile(
       join(paths.sheets, "index.json"),
-      JSON.stringify([{ file: "01.jpg", t0: 0, t1: 3, tiles }]),
+      JSON.stringify([{ file: "sheets/01.jpg", t0: 0, t1: 3, tiles }]),
     );
     await run(paths);
   } finally {
@@ -115,7 +117,8 @@ test("plan --from-narration seeds a valid plan without the API", async () => {
     const text = "# 0:00\nWelcome to the tour.\n\n# 0:04\nThat is all.";
     await runPlanFromNarration(paths, text, { force: false }, () => {});
     const written = JSON.parse(await readFile(paths.plan, "utf8"));
-    assert.equal(written.meta.title, "Welcome to the tour.");
+    assert.equal(written.meta.title, "Demo");
+    assert.equal(written.chapters[0].title, "Walkthrough");
     assert.deepEqual(
       written.chapters[0].scenes.map((s: { source: { in: number; out: number } }) => [s.source.in, s.source.out]),
       [[0, 4], [4, 8]],
@@ -130,7 +133,7 @@ test("plan --from-narration keeps hand edits without --force and needs the probe
     await assert.rejects(runPlanFromNarration(paths, "One.", { force: false }, () => {}), /--force/);
     assert.equal(await readFile(paths.plan, "utf8"), "hand edits");
     await runPlanFromNarration(paths, "One.", { force: true }, () => {});
-    assert.equal(JSON.parse(await readFile(paths.plan, "utf8")).meta.title, "One.");
+    assert.equal(JSON.parse(await readFile(paths.plan, "utf8")).meta.title, "Demo");
     await rm(paths.probe);
     await assert.rejects(runPlanFromNarration(paths, "One.", { force: true }, () => {}), /npm run probe/);
   });
@@ -158,3 +161,31 @@ test("checkPlan fails on validation errors", () => {
   assert.equal(ok, false);
   assert.match(report, /error: .*past the source duration 8/);
 });
+
+const hasFfmpeg = spawnSync("ffmpeg", ["-version"]).status === 0;
+
+test(
+  "plan dry-run reads what the real probe writes",
+  { skip: hasFfmpeg ? false : "ffmpeg is not installed" },
+  async () => {
+    const root = await mkdtemp(join(tmpdir(), "proj-"));
+    try {
+      const paths = projectPaths(join(root, "demo"));
+      await mkdir(paths.root, { recursive: true });
+      const ff = spawnSync("ffmpeg", [
+        "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=320x180:r=10:d=3",
+        "-pix_fmt", "yuv420p", paths.input,
+      ]);
+      assert.equal(ff.status, 0, String(ff.stderr));
+      await runProbe(paths, { force: false });
+
+      const { client, calls } = fakeClient();
+      const lines: string[] = [];
+      await runPlan(paths, client, { yes: false, force: false }, (l) => lines.push(l));
+      assert.equal(calls.length, 0);
+      assert.match(lines.join("\n"), /\d+ sheets, about \d+ input tokens/);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);

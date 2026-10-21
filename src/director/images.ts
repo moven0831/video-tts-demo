@@ -31,8 +31,9 @@ function clock(t: number): string {
 }
 
 // The manifest has no sheet pixel size, so sizes are the extent of the tiles.
-export async function loadSheets(sheetsDir: string): Promise<Sheets> {
-  const index = await readJson(join(sheetsDir, "index.json"), SheetIndex);
+// `file` in the index is relative to the build dir, as probe writes it.
+export async function loadSheets(indexPath: string, buildDir: string): Promise<Sheets> {
+  const index = await readJson(indexPath, SheetIndex);
   const sorted = [...index].sort((a, b) => a.t0 - b.t0 || (a.file < b.file ? -1 : 1));
   const sheets: Sheets = { content: [], sizes: [] };
   for (const [i, sheet] of sorted.entries()) {
@@ -44,7 +45,7 @@ export async function loadSheets(sheetsDir: string): Promise<Sheets> {
         `Sheet ${i + 1}: ${clock(sheet.t0)}–${clock(sheet.t1)}; tiles left-to-right, ` +
         `top-to-bottom at ${times}; each tile is ${tiles[0].w}x${tiles[0].h} px`,
     });
-    const data = (await readFile(join(sheetsDir, sheet.file))).toString("base64");
+    const data = (await readFile(join(buildDir, sheet.file))).toString("base64");
     sheets.content.push({
       type: "image",
       source: { type: "base64", media_type: "image/jpeg", data },
