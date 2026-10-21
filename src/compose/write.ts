@@ -2,28 +2,15 @@ import { copyFile, link, mkdir, rm } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import type { EditPlan } from "../schema/edit-plan.ts";
 import type { Timeline } from "../timeline/types.ts";
+import type { Probe } from "../schema/artifacts.ts";
+import { colorMatrix } from "../probe/frames.ts";
 import { run } from "../util/exec.ts";
 import { writeAtomic } from "../util/fs.ts";
 import { compose } from "./compose.ts";
 
-const MATRIX: Record<string, string> = {
-  smpte170m: "bt601",
-  bt470bg: "bt601",
-  bt2020nc: "bt2020",
-};
-
-// The last played frame, so the still continues the video without a visible step.
+// `at` is the source time of the last frame the video plays, so the still continues it unseen.
 export function stillFrame(at: number, fps: number, duration: number): number {
-  const last = Math.round(duration * fps) - 1;
-  return Math.min(Math.max(Math.ceil(at * fps - 1e-6) - 1, 0), last);
-}
-
-async function colorMatrix(input: string): Promise<string> {
-  const { stdout } = await run("ffprobe", [
-    "-v", "error", "-select_streams", "v:0",
-    "-show_entries", "stream=color_space", "-of", "csv=p=0", input,
-  ]);
-  return MATRIX[stdout.trim()] ?? "bt709";
+  return Math.min(Math.round(at * fps), Math.round(duration * fps) - 1);
 }
 
 async function place(from: string, to: string): Promise<void> {
@@ -41,6 +28,7 @@ export async function writeHf(
   input: string,
   timeline: Timeline,
   plan: EditPlan,
+  probe: Probe,
 ): Promise<string[]> {
   const result = compose(timeline, plan);
   await rm(hf, { recursive: true, force: true });
@@ -49,7 +37,7 @@ export async function writeHf(
     const src = isAbsolute(from) ? from : resolve(build, from);
     await place(src, join(hf, to));
   }
-  const matrix = await colorMatrix(input);
+  const matrix = colorMatrix(probe.colorSpace);
   const { fps, duration } = plan.meta.source;
   for (const still of result.stills) {
     const n = stillFrame(still.at, fps, duration);

@@ -67,7 +67,7 @@ function stages(p: Paths, o: PipelineOptions): Stage[] {
       name: "compose",
       inputs: async () =>
         sha256(
-          [await hashOf([p.timeline, p.plan]), await statKey(p.input), await composeSourceVersion()].join("\n"),
+          [await hashOf([p.timeline, p.plan, p.probe]), await statKey(p.input), await composeSourceVersion()].join("\n"),
         ),
       outputs: [join(p.hf, "index.html")],
     },

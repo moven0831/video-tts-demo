@@ -1,6 +1,6 @@
 import { copyFile, mkdir, readFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
-import type { EditPlan } from "../schema/edit-plan.ts";
+import { sfxCues, type EditPlan } from "../schema/edit-plan.ts";
 import { VoiceManifest, Word } from "../schema/artifacts.ts";
 import { writeJson } from "../util/fs.ts";
 import { sha256, stableStringify } from "../util/hash.ts";
@@ -61,12 +61,7 @@ export function estimateVideoSeconds(plan: EditPlan): number {
 }
 
 export function sfxItems(plan: EditPlan): { id: string; prompt: string; sec: number }[] {
-  const perScene = new Map<string, number>();
-  return plan.audio.sfx.map((cue) => {
-    const index = perScene.get(cue.scene) ?? 0;
-    perScene.set(cue.scene, index + 1);
-    return { id: `${cue.scene}-${index}`, prompt: cue.prompt, sec: cue.sec };
-  });
+  return sfxCues(plan).map(({ id, prompt, sec }) => ({ id, prompt, sec }));
 }
 
 // The director writes "default" when the brief names no voice or model.

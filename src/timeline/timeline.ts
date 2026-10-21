@@ -1,5 +1,5 @@
 import type { Probe, VoiceManifest, Word } from "../schema/artifacts.ts";
-import type { Card, EditPlan, Line, Scene } from "../schema/edit-plan.ts";
+import { sfxCues, type Card, type EditPlan, type Line, type Scene } from "../schema/edit-plan.ts";
 import {
   boxToStage,
   buildCamera,
@@ -35,6 +35,12 @@ function planSegment(fit: Scene["fit"], sourceSec: number, speechSec: number): S
   }
   const freezeSec = speechSec - sourceSec + FREEZE_TAIL_SEC;
   return { rate: 1, videoSec: sourceSec, freezeSec, total: sourceSec + freezeSec };
+}
+
+// The video plays frames round(in * fps) up to ceil(out * fps) - 1; this is the time of the last.
+function lastFrameTime(sourceIn: number, sourceOut: number, fps: number): number {
+  const first = Math.round(sourceIn * fps);
+  return Math.max(first, Math.ceil(sourceOut * fps - EPSILON) - 1) / fps;
 }
 
 function round(value: unknown): unknown {
@@ -88,6 +94,7 @@ export function buildTimeline(
   };
 
   const beginItem = (next: "card" | "scene"): number => {
+    let revealSec = 0;
     if (pending) {
       const { kind, sec } = pending.transition;
       if (next === "scene" && kind !== "fade-black" && !cameraAtRest) {
@@ -104,12 +111,14 @@ export function buildTimeline(
       } else {
         if (kind === "push") warnings.push("push transition is not implemented; using dissolve");
         const overlap = Math.min(sec, lastDuration);
+        revealSec = overlap;
         cursor -= overlap;
         out.transitions.push({ kind, at: cursor, duration: overlap });
       }
       pending = null;
     }
-    if (next === "card") resetCamera(cursor);
+    // A dissolve or push fades the card in over the overlap; until then the scene still shows.
+    if (next === "card") resetCamera(cursor + revealSec);
     return cursor;
   };
   const endItem = (start: number, duration: number) => {
@@ -152,7 +161,7 @@ export function buildTimeline(
     endItem(start, duration);
   };
 
-  const sfxCount = new Map<string, number>();
+  const cues = sfxCues(plan);
   const placeScene = (scene: Scene) => {
     const start = beginItem("scene");
     const { in: sourceIn, out: sourceOut } = scene.source;
@@ -197,7 +206,7 @@ export function buildTimeline(
       ...(freezeSec > EPSILON
         ? {
             freeze: {
-              at: Math.max(sourceIn, sourceOut - 1 / probe.fps),
+              at: lastFrameTime(sourceIn, sourceIn + segment.videoSec * segment.rate, probe.fps),
               start: start + segment.videoSec,
               duration: freezeSec,
             },
@@ -225,20 +234,17 @@ export function buildTimeline(
         t1: toOut(callout.t1),
       });
     }
-    for (const cue of plan.audio.sfx.filter((s) => s.scene === scene.id)) {
-      const index = sfxCount.get(scene.id) ?? 0;
-      sfxCount.set(scene.id, index + 1);
-      const id = `${scene.id}-${index}`;
-      const entry = voice.sfx[id];
-      if (!entry) throw new Error(`voice.json has no sfx "${id}"`);
-      out.sfx.push({ id, file: entry.file, start: toOut(cue.t), duration: entry.duration });
+    for (const cue of cues.filter((c) => c.scene === scene.id)) {
+      const entry = voice.sfx[cue.id];
+      if (!entry) throw new Error(`voice.json has no sfx "${cue.id}"`);
+      out.sfx.push({ id: cue.id, file: entry.file, start: toOut(cue.t), duration: entry.duration });
     }
     endItem(start, duration);
   };
 
   if (plan.intro) placeCard("intro", plan.intro);
   for (const chapter of plan.chapters) {
-    if (chapter.card) placeCard(chapter.id, chapter.card);
+    if (chapter.card) placeCard(`chapter-${chapter.id}`, chapter.card);
     for (const scene of chapter.scenes) placeScene(scene);
     pending = { chapter: chapter.id, transition: chapter.transition };
   }
@@ -251,10 +257,12 @@ export function buildTimeline(
   }
 
   const captions = buildCaptions(words).map((cue) => ({ ...cue, end: Math.min(cue.end, total) }));
-  const musicFile = voice.music?.file ?? plan.audio.music.file;
-  const music = musicFile
+  if (!voice.music && (plan.audio.music.file !== null || plan.audio.music.prompt)) {
+    warnings.push("music is set in the plan but not in voice.json; rerun npm run voice");
+  }
+  const music = voice.music
     ? {
-        file: musicFile,
+        file: voice.music.file,
         gainDb: plan.audio.music.gainDb,
         lane: duckingLane(
           out.narration.map((n) => ({ start: n.start, end: n.start + n.duration })),

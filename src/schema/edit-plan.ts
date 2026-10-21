@@ -92,7 +92,8 @@ export const EditPlan = z.object({
   audio: z.object({
     voice: z.object({ voiceId: z.string().min(1), modelId: z.string().min(1) }),
     music: z.object({
-      file: z.string().nullable().default(null),
+      // A bare filename in the project's music/ dir; no path can reach outside it.
+      file: z.string().regex(/^[^/\\.][^/\\]*$/).nullable().default(null),
       prompt: z.string().max(400).optional(),
       gainDb: z.number().default(-18),
       duckDb: z.number().default(-12),
@@ -102,6 +103,16 @@ export const EditPlan = z.object({
       .default([]),
   }),
 });
+
+// Cues are numbered per scene in plan order; voice.json and the timeline both key sfx by this id.
+export function sfxCues(plan: EditPlan): (EditPlan["audio"]["sfx"][number] & { id: string })[] {
+  const perScene = new Map<string, number>();
+  return plan.audio.sfx.map((cue) => {
+    const index = perScene.get(cue.scene) ?? 0;
+    perScene.set(cue.scene, index + 1);
+    return { ...cue, id: `${cue.scene}-${index}` };
+  });
+}
 
 export const EditPlanDraft = EditPlan.extend({ meta: EditPlan.shape.meta.omit({ source: true }) });
 

@@ -701,9 +701,14 @@
           "properties": {
             "file": {
               "default": null,
-              "type": [
-                "string",
-                "null"
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[^/\\\\.][^/\\\\]*$"
+                },
+                {
+                  "type": "null"
+                }
               ]
             },
             "prompt": {

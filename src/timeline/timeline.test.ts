@@ -118,6 +118,20 @@ test("freeze holds the last frame for the overrun plus 0.6 s", () => {
   near(segment.freeze?.at, 6 - 1 / 30);
 });
 
+test("freeze.at is the source time of the last frame the video plays, at any frame rate", () => {
+  for (const fps of [24, 30, 60, 30000 / 1001]) {
+    const scene = { id: "s", source: { in: 4.05, out: 6.3 }, lines: [{ id: "a" }] };
+    const { timeline } = buildTimeline(
+      planOf([{ id: "c", scenes: [scene] }]),
+      Probe.parse({ ...probe, fps }),
+      voiceOf({ a: 4 }),
+    );
+    const at = timeline.segments[0].freeze?.at ?? NaN;
+    assert.equal(Math.round(at * fps), Math.ceil(6.3 * fps - 1e-6) - 1, `fps ${fps}`);
+    assert.ok(at < 6.3 && at >= 6.3 - 1 / fps - 1e-5, `fps ${fps}`);
+  }
+});
+
 test("a freeze over 6 s warns", () => {
   const scene = { id: "s", source: { in: 0, out: 1 }, lines: [{ id: "a" }] };
   const { warnings, segment } = build(scene, { a: 8 });
@@ -259,7 +273,7 @@ test("items run intro, chapter card, scenes, outro", () => {
     timeline.cards.map((c) => [c.id, c.start, c.duration]),
     [
       ["intro", 0, 1],
-      ["chap", 1, 2],
+      ["chapter-chap", 1, 2],
       ["outro", 8, 1.5],
     ],
   );
@@ -429,6 +443,24 @@ test("the middle of a fade-black gap resets a zoomed camera", () => {
   assert.deepEqual(warnings, []);
 });
 
+test("a dissolve into a card resets the camera once the card is opaque", () => {
+  for (const kind of ["dissolve", "push"]) {
+    const { timeline } = zoomedChapter(
+      { kind, sec: 0.5 },
+      { card: { kind: "chapter", title: "B", sec: 2 } },
+    );
+    assert.equal(timeline.cards[0].start, 3.5, kind);
+    assert.deepEqual(
+      timeline.camera.map((k) => [k.t, k.duration]),
+      [
+        [1, 0.7],
+        [4, 0],
+      ],
+      kind,
+    );
+  }
+});
+
 test("no reset key is added when the camera is already at full frame", () => {
   const withCard = { card: { kind: "chapter", title: "B", sec: 2 } };
   assert.equal(zoomedChapter(undefined, withCard, { t: 1, box: null }).timeline.camera.length, 1);
@@ -481,21 +513,46 @@ test("sfx get scene-index ids and mapped start times", () => {
   );
 });
 
-test("music comes from voice.json or the plan and carries a ducking lane", () => {
+test("music comes from voice.json and carries a ducking lane", () => {
   const scene = { id: "s", lines: [{ id: "a" }] };
-  const plan = planOf([{ id: "c", scenes: [scene] }], {}, { music: { file: "music/bed.mp3" } });
-  const fromPlan = buildTimeline(plan, probe, voiceOf({ a: 2 })).timeline.music;
-  assert.equal(fromPlan?.file, "music/bed.mp3");
-  assert.equal(fromPlan?.gainDb, -18);
-  assert.deepEqual(fromPlan?.lane[0], { t: 0, db: -18 });
-  assert.ok(fromPlan?.lane.some((p) => p.db === -30));
+  const plan = planOf([{ id: "c", scenes: [scene] }], {}, { music: { file: "bed.mp3" } });
+  const voice = voiceOf({ a: 2 }, { music: { file: "../music/bed.mp3", duration: 30 } });
+  const { timeline, warnings } = buildTimeline(plan, probe, voice);
+  assert.equal(timeline.music?.file, "../music/bed.mp3");
+  assert.equal(timeline.music?.gainDb, -18);
+  assert.deepEqual(timeline.music?.lane[0], { t: 0, db: -18 });
+  assert.ok(timeline.music?.lane.some((p) => p.db === -30));
+  assert.deepEqual(warnings, []);
 
-  const voice = voiceOf({ a: 2 }, { music: { file: "cache/music.mp3", duration: 30 } });
-  assert.equal(buildTimeline(plan, probe, voice).timeline.music?.file, "cache/music.mp3");
-  assert.equal(
-    buildTimeline(planOf([{ id: "c", scenes: [scene] }]), probe, voiceOf({ a: 2 })).timeline.music,
-    undefined,
+  const none = buildTimeline(planOf([{ id: "c", scenes: [scene] }]), probe, voiceOf({ a: 2 }));
+  assert.equal(none.timeline.music, undefined);
+  assert.deepEqual(none.warnings, []);
+});
+
+test("music named in the plan but missing from voice.json warns and is left out", () => {
+  const scene = { id: "s", lines: [{ id: "a" }] };
+  for (const music of [{ file: "bed.mp3" }, { prompt: "calm piano" }]) {
+    const plan = planOf([{ id: "c", scenes: [scene] }], {}, { music });
+    const { timeline, warnings } = buildTimeline(plan, probe, voiceOf({ a: 2 }));
+    assert.equal(timeline.music, undefined);
+    assert.deepEqual(warnings, [
+      "music is set in the plan but not in voice.json; rerun npm run voice",
+    ]);
+  }
+});
+
+test("a chapter named intro or outro does not collide with those cards", () => {
+  const plan = planOf(
+    [
+      { id: "intro", card: { kind: "chapter", title: "C", sec: 1 }, scenes: [{ id: "s1" }] },
+      { id: "outro", card: { kind: "chapter", title: "D", sec: 1 }, scenes: [{ id: "s2" }] },
+    ],
+    { intro: { kind: "title", title: "In", sec: 1 }, outro: { kind: "outro", title: "Out", sec: 1 } },
   );
+  const { timeline } = buildTimeline(plan, probe, voiceOf({}));
+  const ids = timeline.cards.map((c) => c.id);
+  assert.deepEqual(ids, ["intro", "chapter-intro", "chapter-outro", "outro"]);
+  assert.equal(new Set(ids).size, ids.length);
 });
 
 test("a missing voice line or sfx entry throws", () => {
