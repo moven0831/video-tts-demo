@@ -461,6 +461,23 @@ test("a dissolve into a card resets the camera once the card is opaque", () => {
   }
 });
 
+test("a card shorter than the dissolve into it resets the camera by its end and warns", () => {
+  const { timeline, warnings } = zoomedChapter(
+    { kind: "dissolve", sec: 0.5 },
+    { card: { kind: "chapter", title: "B", sec: 0.2 } },
+  );
+  assert.equal(timeline.cards[0].start, 3.5);
+  assert.equal(timeline.segments[1].start, 3.7);
+  assert.deepEqual(
+    timeline.camera.map((k) => [k.t, k.duration]),
+    [
+      [1, 0.7],
+      [3.7, 0],
+    ],
+  );
+  assert.deepEqual(warnings, ['card "chapter-b" is shorter than the 0.5 s transition into it']);
+});
+
 test("no reset key is added when the camera is already at full frame", () => {
   const withCard = { card: { kind: "chapter", title: "B", sec: 2 } };
   assert.equal(zoomedChapter(undefined, withCard, { t: 1, box: null }).timeline.camera.length, 1);

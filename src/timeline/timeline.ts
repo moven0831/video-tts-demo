@@ -93,7 +93,7 @@ export function buildTimeline(
     cameraAtRest = true;
   };
 
-  const beginItem = (next: "card" | "scene"): number => {
+  const beginItem = (next: "card" | "scene"): { start: number; revealSec: number } => {
     let revealSec = 0;
     if (pending) {
       const { kind, sec } = pending.transition;
@@ -117,9 +117,7 @@ export function buildTimeline(
       }
       pending = null;
     }
-    // A dissolve or push fades the card in over the overlap; until then the scene still shows.
-    if (next === "card") resetCamera(cursor + revealSec);
-    return cursor;
+    return { start: cursor, revealSec };
   };
   const endItem = (start: number, duration: number) => {
     cursor = start + duration;
@@ -140,7 +138,7 @@ export function buildTimeline(
   };
 
   const placeCard = (id: string, card: Card) => {
-    const start = beginItem("card");
+    const { start, revealSec } = beginItem("card");
     let at = start + LEAD_IN_SEC;
     for (const line of card.narration) {
       addNarration(line, at);
@@ -150,6 +148,12 @@ export function buildTimeline(
       card.narration.length > 0
         ? Math.max(card.sec, speechLength(card.narration) + CARD_TAIL_SEC)
         : card.sec;
+    if (duration < revealSec) {
+      warnings.push(`card "${id}" is shorter than the ${revealSec} s transition into it`);
+    }
+    // A dissolve or push fades the card in over the overlap, so the scene still shows until then;
+    // a card shorter than that hands over to the next item before the card is opaque.
+    resetCamera(start + Math.min(revealSec, duration));
     out.cards.push({
       id,
       kind: card.kind,
@@ -163,7 +167,7 @@ export function buildTimeline(
 
   const cues = sfxCues(plan);
   const placeScene = (scene: Scene) => {
-    const start = beginItem("scene");
+    const { start } = beginItem("scene");
     const { in: sourceIn, out: sourceOut } = scene.source;
     const sourceSec = sourceOut - sourceIn;
 
