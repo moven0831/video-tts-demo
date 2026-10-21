@@ -82,7 +82,7 @@ export async function runPlanFromNarration(
       .replace(/^-|-$/g, "") || "demo";
   const { plan, warnings } = skeletonFromNarration(text, await readJson(paths.probe, Probe), {
     project,
-    title: words.charAt(0).toUpperCase() + words.slice(1),
+    title: words === "" ? "Demo" : words.charAt(0).toUpperCase() + words.slice(1),
     voiceId: "default",
     modelId: "default",
   });

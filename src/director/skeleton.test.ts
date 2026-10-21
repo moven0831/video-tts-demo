@@ -72,6 +72,28 @@ test("a block over 600 characters splits at sentence boundaries into several lin
   assert.equal(plan.chapters[0].scenes[1].narration.length, 1);
 });
 
+test("long blocks also split after closing quotes or brackets, ellipses, and CJK stops", () => {
+  const body = "x".repeat(240);
+  const cases: [string, string, string][] = [
+    ['."', " ", "quote"],
+    [".'", " ", "single quote"],
+    [".)", " ", "bracket"],
+    [".”", " ", "curly quote"],
+    [".’", " ", "curly apostrophe"],
+    ["…", " ", "ellipsis"],
+    ["。", "", "ideographic stop"],
+    ["！", "", "fullwidth bang"],
+    ["？」", "", "fullwidth question and corner bracket"],
+  ];
+  for (const [end, gap, name] of cases) {
+    const sentence = (n: number) => `S${n} ${body}${end}`;
+    const text = [1, 2, 3].map(sentence).join(gap);
+    const { plan } = skeletonFromNarration(`${text}\n\nShort.`, probe, opts);
+    const lines = plan.chapters[0].scenes[0].narration;
+    assert.deepEqual(lines.map((l) => l.text), [`${sentence(1)} ${sentence(2)}`, sentence(3)], name);
+  }
+});
+
 test("a single sentence over 600 characters is an error naming its block", () => {
   const long = `${"word ".repeat(130)}end.`;
   assert.throws(() => skeletonFromNarration(`Short.\n\n${long}`, probe, opts), /block 2.*600/);

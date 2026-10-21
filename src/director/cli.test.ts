@@ -145,6 +145,22 @@ test("plan --from-narration slugifies the project name for meta.project", async 
   }
 });
 
+test("plan --from-narration titles the plan from the project name, or Demo when it has no words", async () => {
+  for (const [dir, title] of [["my_cool-demo", "My cool demo"], ["__", "Demo"], ["-", "Demo"]]) {
+    const root = await mkdtemp(join(tmpdir(), "proj-"));
+    try {
+      const paths = projectPaths(join(root, dir));
+      await mkdir(paths.build, { recursive: true });
+      await cp("test/fixtures/probe.json", paths.probe);
+      await runPlanFromNarration(paths, "One.", { force: false }, () => {});
+      const written = JSON.parse(await readFile(paths.plan, "utf8"));
+      assert.equal(written.meta.title, title, dir);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }
+});
+
 test("plan --from-narration keeps hand edits without --force and needs the probe", async () => {
   await withNamedProject(async (paths) => {
     await writeFile(paths.plan, "hand edits");

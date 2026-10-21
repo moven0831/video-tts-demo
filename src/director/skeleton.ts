@@ -45,6 +45,9 @@ function resolveStarts(segments: Segment[], duration: number) {
 }
 
 const MAX_LINE_CHARS = 600;
+// A stop plus any closing quotes or brackets, then a space; CJK stops need no space.
+const SENTENCE_END =
+  /(?<=[.!?…]["'”’)\]]*)\s+|(?<=[。！？]["'”’)\]」』）]*)(?!["'”’)\]」』）])\s*/;
 
 // The schema caps a line at MAX_LINE_CHARS, so a long block becomes several lines.
 function splitLines(text: string, block: number): string[] {
@@ -52,7 +55,7 @@ function splitLines(text: string, block: number): string[] {
   if (flat.length <= MAX_LINE_CHARS) return [flat];
   const lines: string[] = [];
   let current = "";
-  for (const sentence of flat.split(/(?<=[.!?])\s+/)) {
+  for (const sentence of flat.split(SENTENCE_END).filter((s) => s !== "")) {
     if (sentence.length > MAX_LINE_CHARS) {
       throw new Error(
         `block ${block} has a sentence over ${MAX_LINE_CHARS} characters; split it with punctuation`,
