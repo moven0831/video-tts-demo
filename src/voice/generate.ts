@@ -118,23 +118,32 @@ export async function runVoice(
   if (!yes || dryRun) {
     let chars = 0;
     let uncachedChars = 0;
+    let pending = 0;
     for (const line of lines) {
       const cached = await isCached(voiceDir, lineKey(line, voiceId, modelId), "mp3");
       chars += line.text.length;
-      if (!cached) uncachedChars += line.text.length;
+      if (!cached) {
+        uncachedChars += line.text.length;
+        pending++;
+      }
       log(`${line.id}  ${line.text.length} chars  ${cached ? "cached" : "new"}`);
     }
     log(`lines: ${lines.length}, characters: ${chars}, uncached characters: ${uncachedChars}`);
     for (const item of sfx) {
       const cached = await isCached(sfxDir, clipKey(item.prompt, item.sec), "mp3");
+      if (!cached) pending++;
       log(`sfx ${item.id}  ${item.sec} s  ${cached ? "cached" : "new"}`);
     }
     if (musicSec !== undefined && music.prompt) {
       const cached = await isCached(musicDir, clipKey(music.prompt, musicSec), "mp3");
+      if (!cached) pending++;
       log(`music  ${musicSec} s  ${cached ? "cached" : "new"}`);
     }
-    if (!yes) log("nothing generated; pass --yes to generate the new items");
-    return undefined;
+    // A fully cached plan costs nothing, so it falls through and rewrites voice.json.
+    if (dryRun || pending > 0) {
+      if (!yes) log("nothing generated; pass --yes to generate the new items");
+      return undefined;
+    }
   }
 
   const manifest: VoiceManifest = { lines: {}, sfx: {} };

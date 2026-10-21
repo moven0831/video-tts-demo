@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, open, readdir, readFile, rm, stat, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -37,4 +37,16 @@ test("probes a 6 s clip and skips an unchanged rerun", { skip }, async (t: TestC
 
   assert.equal(await runProbe(paths, { force: false }), "skipped");
   assert.equal(await runProbe(paths, { force: true }), "done");
+
+  const { size, atime, mtime } = await stat(paths.input);
+  const later = new Date(mtime.getTime() + 5000);
+  await utimes(paths.input, atime, later);
+  assert.equal(await runProbe(paths, { force: false }), "done");
+
+  // Same size and mtime with different bytes counts as unchanged: the probe never reads the file.
+  const handle = await open(paths.input, "r+");
+  await handle.write(Buffer.from([0xff]), 0, 1, size - 1);
+  await handle.close();
+  await utimes(paths.input, atime, later);
+  assert.equal(await runProbe(paths, { force: false }), "skipped");
 });

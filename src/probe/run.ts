@@ -1,7 +1,7 @@
 import { mkdir, readFile } from "node:fs/promises";
 import { Motion, Probe, SceneCuts } from "../schema/artifacts.ts";
 import { writeAtomic, writeJson } from "../util/fs.ts";
-import { sha256, sha256File } from "../util/hash.ts";
+import { sha256, statKey } from "../util/hash.ts";
 import type { projectPaths } from "../util/project.ts";
 import { extractFrames, writeContact, writeSheets } from "./frames.ts";
 import { probeVideo } from "./ffprobe.ts";
@@ -22,7 +22,7 @@ async function previousHash(path: string): Promise<string | undefined> {
 }
 
 export async function runProbe(paths: Paths, opts: { force: boolean }): Promise<"done" | "skipped"> {
-  const hash = sha256(`${await sha256File(paths.input)}:${VERSION}`);
+  const hash = sha256(`${await statKey(paths.input)}:${VERSION}`);
   if (!opts.force && (await previousHash(paths.stageHash("probe"))) === hash) return "skipped";
 
   await mkdir(paths.build, { recursive: true });

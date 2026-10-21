@@ -145,6 +145,32 @@ test("dry run and a missing --yes make no calls and write nothing", async (t) =>
   await assert.rejects(stat(paths.voice), /ENOENT/);
 });
 
+test("without --yes, an all-cached plan still writes voice.json and spends nothing", async (t) => {
+  const { paths, log, duration } = await setup(t);
+  const first = fakeVoice();
+  await runVoice(fixture, { voice: first.voice, duration }, paths, { yes: true, dryRun: false, log, env: {} });
+  await rm(paths.voice);
+
+  const again = fakeVoice();
+  const manifest = await runVoice(fixture, { voice: again.voice, duration }, paths, {
+    yes: false,
+    dryRun: false,
+    log,
+    env: {},
+  });
+  assert.deepEqual(again.calls, []);
+  assert.deepEqual(VoiceManifest.parse(JSON.parse(await readFile(paths.voice, "utf8"))), manifest);
+});
+
+test("a dry run never writes voice.json, even when everything is cached", async (t) => {
+  const { paths, log, duration } = await setup(t);
+  const { voice } = fakeVoice();
+  await runVoice(fixture, { voice, duration }, paths, { yes: true, dryRun: false, log, env: {} });
+  await rm(paths.voice);
+  assert.equal(await runVoice(fixture, { voice, duration }, paths, { yes: false, dryRun: true, log, env: {} }), undefined);
+  await assert.rejects(stat(paths.voice), /ENOENT/);
+});
+
 test("--yes generates in output order with stitched neighbours and writes a valid manifest", async (t) => {
   const { paths, log, duration } = await setup(t);
   const { voice, calls } = fakeVoice();

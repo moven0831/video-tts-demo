@@ -62,7 +62,8 @@ test("plan without --yes prints an estimate and calls nothing", async () => {
   await withProject(async (paths) => {
     const { client, calls } = fakeClient();
     const lines: string[] = [];
-    await runPlan(paths, client, { yes: false, force: false }, (l) => lines.push(l));
+    const outcome = await runPlan(paths, client, { yes: false, force: false }, (l) => lines.push(l));
+    assert.equal(outcome, "needs-spend");
     assert.equal(calls.length, 0);
     assert.match(lines.join("\n"), /1 sheets, about \d+ input tokens/);
     assert.match(lines.join("\n"), /estimated cost \$\d/);
@@ -72,7 +73,8 @@ test("plan without --yes prints an estimate and calls nothing", async () => {
 
 test("plan --yes writes edit-plan.json", async () => {
   await withProject(async (paths) => {
-    await runPlan(paths, fakeClient().client, { yes: true, force: false }, () => {});
+    const outcome = await runPlan(paths, fakeClient().client, { yes: true, force: false }, () => {});
+    assert.equal(outcome, "written");
     assert.deepEqual(JSON.parse(await readFile(paths.plan, "utf8")), fixture);
   });
 });

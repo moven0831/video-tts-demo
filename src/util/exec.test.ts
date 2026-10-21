@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { run, runBuffer } from "./exec.ts";
+import { run, runBuffer, runInherited, runStreaming } from "./exec.ts";
+
+test("runInherited resolves to the exit code, zero or not", async () => {
+  assert.equal(await runInherited(process.execPath, ["-e", "process.exit(0)"]), 0);
+  assert.equal(await runInherited(process.execPath, ["-e", "process.exit(3)"]), 3);
+  await assert.rejects(runStreaming(process.execPath, ["-e", "process.exit(3)"]), /exited with code 3/);
+});
 
 test("runBuffer returns binary stdout untouched", async () => {
   const out = await runBuffer(process.execPath, [

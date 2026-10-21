@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readdir, rm, utimes, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
+import { EXIT_NEEDS_SPEND } from "../util/exec.ts";
 import { projectPaths } from "../util/project.ts";
 import { runPipeline, treeHash, type PipelineOptions } from "./pipeline.ts";
 
@@ -20,7 +21,7 @@ async function project(t: TestContext) {
 
 // Writes each stage's outputs the way the real CLIs would.
 function fakeExec(p: ReturnType<typeof projectPaths>, calls: string[]) {
-  return async (stage: string, args: string[]) => {
+  return async (stage: string, args: string[]): Promise<number> => {
     calls.push([stage, ...args].join(" "));
     const outputs: Record<string, string[]> = {
       probe: [p.probe],
@@ -34,6 +35,7 @@ function fakeExec(p: ReturnType<typeof projectPaths>, calls: string[]) {
       await mkdir(join(file, ".."), { recursive: true });
       await writeFile(file, `${stage}-${calls.length}`);
     }
+    return 0;
   };
 }
 
@@ -97,37 +99,70 @@ test("a missing plan stops the demo unless --plan is given", async (t) => {
   const calls: string[] = [];
   const exec = fakeExec(p, calls);
   await runPipeline(p, { ...OPTS, plan: true }, async (stage, args) => {
-    await exec(stage, args);
+    const code = await exec(stage, args);
     if (stage === "plan") await writeFile(p.plan, "{}");
+    return code;
   });
   assert.deepEqual(calls.slice(0, 3), ["probe", "plan --yes", "plan-check"]);
 });
 
-test("without --yes the demo stops when voice has not been generated", async (t) => {
+test("--plan without --yes runs plan for its estimate and stops before spending", async (t) => {
+  const p = await project(t);
+  await rm(p.plan);
+  const calls: string[] = [];
+  const exec = fakeExec(p, calls);
+  await assert.rejects(
+    runPipeline(p, { ...OPTS, yes: false, plan: true }, async (stage, args) => {
+      if (stage !== "plan") return exec(stage, args);
+      calls.push(["plan", ...args].join(" "));
+      return EXIT_NEEDS_SPEND;
+    }),
+    /plan needs to spend.*rerun with --yes/,
+  );
+  assert.deepEqual(calls, ["probe", "plan"]);
+});
+
+test("without --yes the demo stops when voice reports it needs to spend", async (t) => {
   const p = await project(t);
   const calls: string[] = [];
   const exec = fakeExec(p, calls);
   await assert.rejects(
     runPipeline(p, { ...OPTS, yes: false }, async (stage, args) => {
       if (stage !== "voice") return exec(stage, args);
-      calls.push("voice");
+      calls.push(["voice", ...args].join(" "));
+      return EXIT_NEEDS_SPEND;
     }),
-    /rerun with --yes/,
+    /voice needs to spend.*rerun with --yes/,
   );
   assert.deepEqual(calls, ["probe", "plan-check", "voice"]);
 });
 
-test("without --yes a voice.json older than the plan also stops the demo", async (t) => {
+test("without --yes the demo carries on when voice finds everything cached", async (t) => {
   const p = await project(t);
-  await writeFile(p.voice, "old");
-  await utimes(p.voice, new Date(1000), new Date(1000));
-  const exec = fakeExec(p, []);
+  const calls: string[] = [];
+  await runPipeline(p, { ...OPTS, yes: false }, fakeExec(p, calls));
+  assert.deepEqual(calls.slice(0, 4), ["probe", "plan-check", "voice", "timeline"]);
+});
+
+test("any other non-zero exit fails the stage", async (t) => {
+  const p = await project(t);
   await assert.rejects(
-    runPipeline(p, { ...OPTS, yes: false }, (stage, args) =>
-      stage === "voice" ? Promise.resolve() : exec(stage, args),
-    ),
-    /rerun with --yes/,
+    runPipeline(p, OPTS, async (stage) => (stage === "plan-check" ? 1 : 0)),
+    /plan-check exited with code 1/,
   );
+});
+
+test("the stored hash is the one computed before the stage ran", async (t) => {
+  const p = await project(t);
+  const exec = fakeExec(p, []);
+  await runPipeline(p, OPTS, async (stage, args) => {
+    const code = await exec(stage, args);
+    if (stage === "timeline") await writeFile(p.plan, '{"edited":"mid-run"}');
+    return code;
+  });
+  const calls: string[] = [];
+  await runPipeline(p, OPTS, fakeExec(p, calls));
+  assert.ok(calls.includes("timeline"), "timeline must rerun for the mid-run edit");
 });
 
 test("treeHash changes with file content", async (t) => {

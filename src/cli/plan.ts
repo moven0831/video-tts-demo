@@ -13,6 +13,7 @@ import {
 import { buildPlanRequest } from "../director/prompt.ts";
 import { skeletonFromNarration } from "../director/skeleton.ts";
 import { Motion, Probe, SceneCuts } from "../schema/artifacts.ts";
+import { EXIT_NEEDS_SPEND } from "../util/exec.ts";
 import { readJson, writeJson } from "../util/fs.ts";
 import { parseProjectArgs, projectPaths } from "../util/project.ts";
 
@@ -23,7 +24,7 @@ export async function runPlan(
   client: PlanClient,
   opts: { yes: boolean; force: boolean },
   log: (line: string) => void = console.log,
-): Promise<void> {
+): Promise<"written" | "needs-spend"> {
   const index = `${paths.sheets}/index.json`;
   for (const file of [paths.probe, paths.scenes, paths.motion, index]) {
     if (!existsSync(file)) {
@@ -49,7 +50,7 @@ export async function runPlan(
     log(`${est.images} sheets, about ${est.inputTokens} input tokens`);
     log(`estimated cost $${est.low.toFixed(2)} to $${est.high.toFixed(2)}`);
     log("frames are sent to the Anthropic API; rerun with --yes to spend");
-    return;
+    return "needs-spend";
   }
 
   const { plan, warnings, usage } = await makePlan(client, input, { cacheDir });
@@ -57,6 +58,7 @@ export async function runPlan(
   for (const warning of warnings) log(`warning: ${warning}`);
   log(usage ? `used ${formatUsage(usage)}` : "plan came from the cache");
   log(`wrote ${paths.plan}`);
+  return "written";
 }
 
 export async function runPlanFromNarration(
@@ -93,6 +95,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const text = await readFile(values["from-narration"], "utf8");
     await runPlanFromNarration(paths, text, { force: !!values.force });
   } else {
-    await runPlan(paths, new Anthropic(), { yes: !!values.yes, force: !!values.force });
+    const outcome = await runPlan(paths, new Anthropic(), {
+      yes: !!values.yes,
+      force: !!values.force,
+    });
+    if (outcome === "needs-spend") process.exitCode = EXIT_NEEDS_SPEND;
   }
 }

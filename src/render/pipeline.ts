@@ -1,14 +1,16 @@
-import { access, readdir, readFile, stat } from "node:fs/promises";
+import { access, readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { sha256, sha256File } from "../util/hash.ts";
+import { EXIT_NEEDS_SPEND } from "../util/exec.ts";
+import { sha256, sha256File, statKey } from "../util/hash.ts";
 import { writeAtomic } from "../util/fs.ts";
 import type { projectPaths } from "../util/project.ts";
 
 type Paths = ReturnType<typeof projectPaths>;
 
 export type PipelineOptions = { force: boolean; draft: boolean; yes: boolean; plan: boolean };
-export type Exec = (stage: string, args: string[]) => Promise<void>;
+// Resolves to the stage's exit code; judging a non-zero code is up to the pipeline.
+export type Exec = (stage: string, args: string[]) => Promise<number>;
 
 const COMPOSE_SRC = fileURLToPath(new URL("../compose/", import.meta.url));
 
@@ -25,12 +27,6 @@ async function walk(dir: string): Promise<string[]> {
     entries.map((e) => (e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)])),
   );
   return nested.flat().sort();
-}
-
-// Recordings run to gigabytes; size and mtime identify them well enough.
-async function statKey(path: string): Promise<string> {
-  const s = await stat(path);
-  return `${s.size}:${Math.round(s.mtimeMs)}`;
 }
 
 export async function composeSourceVersion(): Promise<string> {
@@ -94,16 +90,20 @@ function stageArgs(name: string, o: PipelineOptions): string[] {
   return [];
 }
 
-async function voiceReady(p: Paths): Promise<boolean> {
-  if (!(await exists(p.voice))) return false;
-  return (await stat(p.voice)).mtimeMs >= (await stat(p.plan)).mtimeMs;
+async function execStage(exec: Exec, stage: string, args: string[]): Promise<void> {
+  const code = await exec(stage, args);
+  if (code === EXIT_NEEDS_SPEND) {
+    throw new Error(`${stage} needs to spend; review the estimate above and rerun with --yes`);
+  }
+  if (code !== 0) throw new Error(`${stage} exited with code ${code}`);
 }
 
 async function runStage(p: Paths, o: PipelineOptions, stage: Stage, exec: Exec): Promise<void> {
   const hashFile = p.demoHash(stage.name);
+  let inputs: string | null = null;
   if (stage.inputs) {
     const outputsExist = (await Promise.all(stage.outputs.map(exists))).every(Boolean);
-    const inputs = await stage.inputs().catch(() => null);
+    inputs = await stage.inputs().catch(() => null);
     const previous = await readFile(hashFile, "utf8").catch(() => null);
     if (!o.force && inputs !== null && outputsExist && previous === inputs) {
       console.log(`skip ${stage.name} (unchanged)`);
@@ -111,11 +111,9 @@ async function runStage(p: Paths, o: PipelineOptions, stage: Stage, exec: Exec):
     }
   }
   console.log(`run ${stage.name}`);
-  await exec(stage.name, stageArgs(stage.name, o));
-  if (stage.name === "voice" && !o.yes && !(await voiceReady(p))) {
-    throw new Error("voice has not been generated; review the spend above and rerun with --yes");
-  }
-  if (stage.inputs) await writeAtomic(hashFile, await stage.inputs());
+  await execStage(exec, stage.name, stageArgs(stage.name, o));
+  // No stage's inputs include its own outputs, so the pre-exec value is what the stage consumed.
+  if (stage.inputs) await writeAtomic(hashFile, inputs ?? (await stage.inputs()));
 }
 
 export async function runPipeline(p: Paths, o: PipelineOptions, exec: Exec): Promise<void> {
@@ -124,6 +122,6 @@ export async function runPipeline(p: Paths, o: PipelineOptions, exec: Exec): Pro
     throw new Error(`${p.plan} is missing; write it or pass --plan to generate it`);
   }
   await runStage(p, o, probe, exec);
-  if (!(await exists(p.plan))) await exec("plan", ["--yes"]);
+  if (!(await exists(p.plan))) await execStage(exec, "plan", o.yes ? ["--yes"] : []);
   for (const stage of rest) await runStage(p, o, stage, exec);
 }
