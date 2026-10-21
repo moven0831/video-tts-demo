@@ -1,6 +1,6 @@
 import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
 import { readFile } from "node:fs/promises";
-import { splitSegments, writeClips } from "./clips.ts";
+import { splitSegments, writeClips } from "../voice/clips.ts";
 
 const narrationPath = process.argv[2] ?? "narration.txt";
 const outDir = process.argv[3] ?? "audio";

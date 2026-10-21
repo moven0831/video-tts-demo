@@ -1,0 +1,170 @@
+{
+  "version": 1,
+  "meta": {
+    "project": "fixture",
+    "title": "Fixture tour",
+    "source": {
+      "width": 1280,
+      "height": 720,
+      "fps": 30,
+      "duration": 8
+    },
+    "output": {
+      "width": 1920,
+      "height": 1080,
+      "fps": 30
+    }
+  },
+  "style": {
+    "theme": "dark",
+    "accent": "#6E56CF",
+    "font": "Inter",
+    "captions": {
+      "mode": "burn-in",
+      "maxCharsPerLine": 42,
+      "maxLines": 2
+    },
+    "camera": {
+      "maxZoom": 2.4,
+      "moveSec": 0.7
+    }
+  },
+  "intro": {
+    "kind": "title",
+    "title": "Product tour",
+    "subtitle": "A quick look",
+    "sec": 3,
+    "narration": [
+      {
+        "id": "intro-1",
+        "text": "Welcome to the product tour.",
+        "pauseAfter": 0.35
+      }
+    ]
+  },
+  "outro": {
+    "kind": "outro",
+    "title": "Thanks for watching",
+    "sec": 3,
+    "narration": [
+      {
+        "id": "outro-1",
+        "text": "That is all it takes.",
+        "pauseAfter": 0.35
+      }
+    ]
+  },
+  "chapters": [
+    {
+      "id": "getting-started",
+      "title": "Getting started",
+      "card": {
+        "kind": "chapter",
+        "title": "Getting started",
+        "sec": 3,
+        "narration": []
+      },
+      "scenes": [
+        {
+          "id": "open-app",
+          "source": {
+            "in": 0,
+            "out": 4
+          },
+          "fit": "freeze",
+          "narration": [
+            {
+              "id": "open-1",
+              "text": "Start by opening the app.",
+              "pauseAfter": 0.35
+            },
+            {
+              "id": "open-2",
+              "text": "Everything you need is on the left.",
+              "pauseAfter": 0.35
+            }
+          ],
+          "camera": [
+            {
+              "t": 1,
+              "box": {
+                "x": 640,
+                "y": 180,
+                "w": 480,
+                "h": 270
+              }
+            },
+            {
+              "t": 3,
+              "box": null
+            }
+          ],
+          "clicks": [
+            {
+              "t": 2,
+              "x": 800,
+              "y": 300,
+              "kind": "click"
+            }
+          ],
+          "callouts": [
+            {
+              "t0": 1.8,
+              "t1": 2.9,
+              "box": {
+                "x": 700,
+                "y": 220,
+                "w": 300,
+                "h": 80
+              },
+              "label": "Open settings",
+              "kind": "box",
+              "side": "auto"
+            }
+          ]
+        },
+        {
+          "id": "click-through",
+          "source": {
+            "in": 4,
+            "out": 8
+          },
+          "fit": "freeze",
+          "narration": [
+            {
+              "id": "click-1",
+              "text": "Click the settings icon to continue.",
+              "pauseAfter": 0.35
+            }
+          ],
+          "camera": [],
+          "clicks": [],
+          "callouts": []
+        }
+      ],
+      "transition": {
+        "kind": "fade-black",
+        "sec": 0.5
+      }
+    }
+  ],
+  "audio": {
+    "voice": {
+      "voiceId": "JBFqnCBsd6RMkjVDRZzb",
+      "modelId": "eleven_v4"
+    },
+    "music": {
+      "file": null,
+      "gainDb": -18,
+      "duckDb": -12
+    },
+    "sfx": [
+      {
+        "scene": "open-app",
+        "t": 2,
+        "prompt": "soft interface click",
+        "sec": 0.5
+      }
+    ]
+  }
+}
