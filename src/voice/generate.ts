@@ -19,6 +19,8 @@ type Options = {
 };
 
 const CHARS_PER_SEC = 15;
+// The music API accepts 3000 to 600000 ms; we stop at 300 s.
+const MIN_MUSIC_SEC = 3;
 const MAX_MUSIC_SEC = 300;
 
 export type NarrationLine = {
@@ -55,7 +57,7 @@ export function estimateVideoSeconds(plan: EditPlan): number {
       total += Math.max(scene.source.out - scene.source.in, chars / CHARS_PER_SEC + 1);
     }
   }
-  return Math.min(Math.ceil(total), MAX_MUSIC_SEC);
+  return Math.min(Math.max(Math.ceil(total), MIN_MUSIC_SEC), MAX_MUSIC_SEC);
 }
 
 export function sfxItems(plan: EditPlan): { id: string; prompt: string; sec: number }[] {

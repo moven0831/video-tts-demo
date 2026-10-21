@@ -54,13 +54,14 @@ async function hashOf(paths: string[]): Promise<string> {
   return sha256((await Promise.all(paths.map(sha256File))).join("\n"));
 }
 
-type Stage = { name: string; inputs: () => Promise<string>; outputs: string[] };
+// Stages without `inputs` always run: they manage their own freshness (probe, voice) or are cheap.
+type Stage = { name: string; inputs?: () => Promise<string>; outputs: string[] };
 
 function stages(p: Paths, o: PipelineOptions): Stage[] {
   return [
-    { name: "probe", inputs: () => statKey(p.input), outputs: [p.probe] },
-    { name: "plan-check", inputs: () => hashOf([p.plan, p.probe]), outputs: [] },
-    { name: "voice", inputs: () => hashOf([p.plan]), outputs: [p.voice] },
+    { name: "probe", outputs: [p.probe] },
+    { name: "plan-check", outputs: [] },
+    { name: "voice", outputs: [p.voice] },
     {
       name: "timeline",
       inputs: () => hashOf([p.plan, p.probe, p.voice]),
@@ -99,20 +100,22 @@ async function voiceReady(p: Paths): Promise<boolean> {
 }
 
 async function runStage(p: Paths, o: PipelineOptions, stage: Stage, exec: Exec): Promise<void> {
-  const hashFile = p.stageHash(stage.name);
-  const outputsExist = (await Promise.all(stage.outputs.map(exists))).every(Boolean);
-  const inputs = await stage.inputs().catch(() => null);
-  const previous = await readFile(hashFile, "utf8").catch(() => null);
-  if (!o.force && inputs !== null && outputsExist && previous === inputs) {
-    console.log(`skip ${stage.name} (unchanged)`);
-    return;
+  const hashFile = p.demoHash(stage.name);
+  if (stage.inputs) {
+    const outputsExist = (await Promise.all(stage.outputs.map(exists))).every(Boolean);
+    const inputs = await stage.inputs().catch(() => null);
+    const previous = await readFile(hashFile, "utf8").catch(() => null);
+    if (!o.force && inputs !== null && outputsExist && previous === inputs) {
+      console.log(`skip ${stage.name} (unchanged)`);
+      return;
+    }
   }
   console.log(`run ${stage.name}`);
   await exec(stage.name, stageArgs(stage.name, o));
   if (stage.name === "voice" && !o.yes && !(await voiceReady(p))) {
     throw new Error("voice has not been generated; review the spend above and rerun with --yes");
   }
-  await writeAtomic(hashFile, await stage.inputs());
+  if (stage.inputs) await writeAtomic(hashFile, await stage.inputs());
 }
 
 export async function runPipeline(p: Paths, o: PipelineOptions, exec: Exec): Promise<void> {

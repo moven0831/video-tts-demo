@@ -45,6 +45,7 @@ test("every path sits where the layout puts it", () => {
 test("stageHash and cacheDir build on the build dir", () => {
   const p = projectPaths("/r/p");
   assert.equal(p.stageHash("voice"), join("/r/p/build", "voice.hash"));
+  assert.equal(p.demoHash("mux"), join("/r/p/build", "mux.demo.hash"));
   assert.equal(p.cacheDir("sfx"), "/r/p/build/cache/sfx");
 });
 

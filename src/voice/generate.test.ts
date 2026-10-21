@@ -123,6 +123,16 @@ test("estimated length counts cards, the longer of source and speech per scene, 
   assert.equal(estimateVideoSeconds(huge), 300);
 });
 
+test("estimated length never falls below the 3 s the music API accepts", () => {
+  const tiny = structuredClone(fixture);
+  delete tiny.intro;
+  delete tiny.outro;
+  tiny.chapters = [{ ...tiny.chapters[0], card: undefined, scenes: [tiny.chapters[0].scenes[0]] }];
+  tiny.chapters[0].scenes[0].source = { in: 0, out: 1 };
+  tiny.chapters[0].scenes[0].narration = [{ ...tiny.chapters[0].scenes[0].narration[0], text: "a" }];
+  assert.equal(estimateVideoSeconds(tiny), 3);
+});
+
 test("dry run and a missing --yes make no calls and write nothing", async (t) => {
   const { paths, lines, log, duration } = await setup(t);
   const { voice, calls } = fakeVoice();

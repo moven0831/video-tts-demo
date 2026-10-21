@@ -34,6 +34,7 @@ export function projectPaths(arg: string) {
     finalVtt: join(out, "final.vtt"),
     finalContact: join(out, "contact.jpg"),
     stageHash: (stage: string) => join(build, `${stage}.hash`),
+    demoHash: (stage: string) => join(build, `${stage}.demo.hash`),
     cacheDir: (kind: CacheKind) => join(build, "cache", kind),
   };
 }

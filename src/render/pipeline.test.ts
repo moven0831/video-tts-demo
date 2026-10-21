@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -52,7 +52,14 @@ test("runs every stage in order, then skips them all when nothing changed", asyn
   ]);
   calls.length = 0;
   await runPipeline(p, OPTS, fakeExec(p, calls));
-  assert.deepEqual(calls, []);
+  assert.deepEqual(calls, ["probe", "plan-check", "voice --yes"]);
+});
+
+test("demo hashes only the stages it skips, in files probe never touches", async (t) => {
+  const p = await project(t);
+  await runPipeline(p, OPTS, fakeExec(p, []));
+  const files = (await readdir(p.build)).filter((f) => f.endsWith(".hash")).sort();
+  assert.deepEqual(files, ["compose", "mux", "render", "timeline"].map((s) => `${s}.demo.hash`));
 });
 
 test("--force reruns everything", async (t) => {
@@ -71,8 +78,7 @@ test("changing the plan reruns plan-check onward", async (t) => {
   await writeFile(p.plan, '{"v":2}');
   calls.length = 0;
   await runPipeline(p, OPTS, fakeExec(p, calls));
-  assert.equal(calls[0], "plan-check");
-  assert.equal(calls.length, 6);
+  assert.deepEqual(calls.slice(0, 5), ["probe", "plan-check", "voice --yes", "timeline", "compose"]);
 });
 
 test("changing quality reruns render and mux only", async (t) => {
@@ -81,7 +87,7 @@ test("changing quality reruns render and mux only", async (t) => {
   await runPipeline(p, OPTS, fakeExec(p, calls));
   calls.length = 0;
   await runPipeline(p, { ...OPTS, draft: false }, fakeExec(p, calls));
-  assert.deepEqual(calls, ["render", "mux"]);
+  assert.deepEqual(calls, ["probe", "plan-check", "voice --yes", "render", "mux"]);
 });
 
 test("a missing plan stops the demo unless --plan is given", async (t) => {
