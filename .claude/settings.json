@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "deny": ["Read(./.env)", "Read(./.env.*)"],
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npx hyperframes *)",
+      "Bash(ffmpeg *)",
+      "Bash(ffprobe *)"
+    ]
+  },
+  "env": {
+    "HYPERFRAMES_NO_UPDATE_CHECK": "1",
+    "HYPERFRAMES_SKIP_SKILLS": "1"
+  },
+  "extraKnownMarketplaces": {
+    "hyperframes": {
+      "source": {
+        "source": "github",
+        "repo": "heygen-com/hyperframes",
+        "ref": "v0.8.183"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "hyperframes@hyperframes": true
+  }
+}
