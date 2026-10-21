@@ -14,6 +14,10 @@ export async function writeAtomic(path: string, data: string | Uint8Array): Prom
   await rename(part, path);
 }
 
+export function writeJson(path: string, value: unknown): Promise<void> {
+  return writeAtomic(path, `${JSON.stringify(value, null, 2)}\n`);
+}
+
 export async function readJson<T extends z.ZodType>(path: string, schema: T): Promise<z.output<T>> {
   return schema.parse(JSON.parse(await readFile(path, "utf8")));
 }

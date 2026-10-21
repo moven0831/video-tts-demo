@@ -2,7 +2,7 @@ import { copyFile, mkdir, readFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 import type { EditPlan } from "../schema/edit-plan.ts";
 import { VoiceManifest, Word } from "../schema/artifacts.ts";
-import { writeAtomic } from "../util/fs.ts";
+import { writeJson } from "../util/fs.ts";
 import { sha256, stableStringify } from "../util/hash.ts";
 import type { projectPaths } from "../util/project.ts";
 import { wordsFromAlignment } from "./align.ts";
@@ -187,7 +187,7 @@ export async function runVoice(
     manifest.music = { file: rel(file), duration: await duration(file) };
   }
 
-  await writeAtomic(paths.voice, JSON.stringify(VoiceManifest.parse(manifest), null, 2) + "\n");
+  await writeJson(paths.voice, VoiceManifest.parse(manifest));
   return manifest;
 }
 

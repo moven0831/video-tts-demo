@@ -13,7 +13,7 @@ import {
 import { buildPlanRequest } from "../director/prompt.ts";
 import { skeletonFromNarration } from "../director/skeleton.ts";
 import { Motion, Probe, SceneCuts } from "../schema/artifacts.ts";
-import { readJson, writeAtomic } from "../util/fs.ts";
+import { readJson, writeJson } from "../util/fs.ts";
 import { parseProjectArgs, projectPaths } from "../util/project.ts";
 
 type Paths = ReturnType<typeof projectPaths>;
@@ -53,7 +53,7 @@ export async function runPlan(
   }
 
   const { plan, warnings, usage } = await makePlan(client, input, { cacheDir });
-  await writeAtomic(paths.plan, `${JSON.stringify(plan, null, 2)}\n`);
+  await writeJson(paths.plan, plan);
   for (const warning of warnings) log(`warning: ${warning}`);
   log(usage ? `used ${formatUsage(usage)}` : "plan came from the cache");
   log(`wrote ${paths.plan}`);
@@ -78,7 +78,7 @@ export async function runPlanFromNarration(
     voiceId: "default",
     modelId: "default",
   });
-  await writeAtomic(paths.plan, `${JSON.stringify(plan, null, 2)}\n`);
+  await writeJson(paths.plan, plan);
   for (const warning of warnings) log(`warning: ${warning}`);
   log(`wrote ${paths.plan}`);
 }

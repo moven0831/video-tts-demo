@@ -4,8 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { run } from "../src/util/exec.ts";
-import { capture } from "../src/render/spawn.ts";
+import { capture, run } from "../src/util/exec.ts";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const TSX = join(ROOT, "node_modules/.bin/tsx");

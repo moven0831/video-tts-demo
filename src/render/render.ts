@@ -1,7 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { rename, rm } from "node:fs/promises";
-import { run } from "../util/exec.ts";
-import { capture, runStreaming } from "./spawn.ts";
+import { capture, run, runStreaming } from "../util/exec.ts";
 
 const BIN = fileURLToPath(new URL("../../node_modules/.bin/hyperframes", import.meta.url));
 const ENV = { HYPERFRAMES_NO_UPDATE_CHECK: "1", HYPERFRAMES_SKIP_SKILLS: "1" };

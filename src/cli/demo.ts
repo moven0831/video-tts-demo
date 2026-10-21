@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { runPipeline } from "../render/pipeline.ts";
-import { runStreaming } from "../render/spawn.ts";
+import { runStreaming } from "../util/exec.ts";
 import { parseProjectArgs } from "../util/project.ts";
 
 const { paths, values } = parseProjectArgs(process.argv.slice(2), {
