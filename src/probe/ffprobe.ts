@@ -15,6 +15,10 @@ export type ProbeJson = { streams: Stream[]; format: { duration?: string } };
 
 const VFR_TOLERANCE = 0.01;
 
+export const VFR_WARNING =
+  "the recording has a variable frame rate, so freeze frames and timestamps can drift; " +
+  "re-encode it first: ffmpeg -i in.mov -vf fps=30 -c:v libx264 -crf 16 input.mp4";
+
 function rate(value: string | undefined): number | undefined {
   const [num, den] = (value ?? "").split("/").map(Number);
   const fps = num / (den ?? 1);
