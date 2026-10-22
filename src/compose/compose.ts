@@ -51,10 +51,10 @@ html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--
 
 type Segment = Timeline["segments"][number];
 
-function segmentHtml(seg: Segment, timeline: Timeline, plan: EditPlan): string {
-  const { fit } = timeline;
-  const { width, height } = plan.meta.source;
-  const box = `left:${num(fit.x)}px;top:${num(fit.y)}px;width:${num(width * fit.scale)}px;height:${num(height * fit.scale)}px`;
+function segmentHtml(seg: Segment, timeline: Timeline): string {
+  const { fit, stage } = timeline;
+  // fit centres the video, so its box follows from the stage and the letterbox offsets.
+  const box = `left:${num(fit.x)}px;top:${num(fit.y)}px;width:${num(stage.width - 2 * fit.x)}px;height:${num(stage.height - 2 * fit.y)}px`;
   const scene = esc(seg.scene);
   const videoEnd = seg.freeze ? seg.freeze.start : seg.end;
   const rate = seg.rate === 1 ? "" : ` data-playback-rate="${num(seg.rate)}"`;
@@ -216,7 +216,7 @@ ${BASE_CSS}${OVERLAY_CSS}
   <body>
     <div id="root" data-composition-id="demo" data-start="0" data-duration="${num(timeline.total)}" data-width="${stage.width}" data-height="${stage.height}" data-fps="${FPS}">
       <div class="cam" id="cam">
-        ${timeline.segments.map((s) => segmentHtml(s, timeline, plan)).join("\n        ")}
+        ${timeline.segments.map((s) => segmentHtml(s, timeline)).join("\n        ")}
         ${overlays.map((o) => o.html).join("\n        ")}
       </div>
       ${hosts.join("\n      ")}
