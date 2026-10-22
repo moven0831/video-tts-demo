@@ -1,8 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { contactLayout } from "./contact.ts";
-import { isMeasurable, measuredFilter, parseLoudnorm } from "./mux.ts";
-import { lintProblems, renderArgs } from "./render.ts";
+import { Timeline } from "../timeline/types.ts";
+import {
+  assertAudible,
+  audioClipCount,
+  isMeasurable,
+  isSilent,
+  measuredFilter,
+  parseLoudnorm,
+} from "./mux.ts";
+import { checkStreams, lintProblems, renderArgs } from "./render.ts";
 
 const STDERR = `Input #0, mov,mp4
 [Parsed_loudnorm_0 @ 0x1234]
@@ -44,10 +52,78 @@ test("measuredFilter targets -14 LUFS linearly", () => {
   );
 });
 
+test("parseLoudnorm names the block when it is not JSON", () => {
+  assert.throws(
+    () => parseLoudnorm("log\n{ \"input_i\" : -23.54, oops }\n"),
+    /measurements that are not JSON: \{ "input_i" : -23.54, oops \}/,
+  );
+});
+
 test("silent audio is not measurable", () => {
   const m = parseLoudnorm(STDERR.replace("-23.54", "-inf"));
   assert.equal(isMeasurable(m), false);
+  assert.equal(isSilent(m), true);
   assert.equal(isMeasurable(parseLoudnorm(STDERR)), true);
+  assert.equal(isSilent(parseLoudnorm(STDERR)), false);
+});
+
+test("a finite integrated loudness with -inf elsewhere is unmeasurable but not silent", () => {
+  for (const field of ["-6.12", "4.20", "-34.10", "0.50"]) {
+    const m = parseLoudnorm(STDERR.replace(`"${field}"`, '"-inf"'));
+    assert.equal(isSilent(m), false, field);
+    assert.equal(isMeasurable(m), false, field);
+  }
+});
+
+test("silence fails the mux when the timeline has audio and passes when it has none", () => {
+  const silent = parseLoudnorm(STDERR.replace("-23.54", "-inf"));
+  assert.throws(
+    () => assertAudible(silent, 3),
+    /render produced a silent audio track although the timeline has 3 audio clips/,
+  );
+  assertAudible(silent, 0);
+  assertAudible(parseLoudnorm(STDERR), 3);
+});
+
+test("audioClipCount counts narration, sfx and the music bed", () => {
+  const timeline = Timeline.parse({
+    total: 5,
+    stage: { width: 1920, height: 1080 },
+    fit: { scale: 1, x: 0, y: 0 },
+    segments: [],
+    camera: [],
+    clicks: [],
+    callouts: [],
+    cards: [],
+    transitions: [],
+    narration: [
+      { lineId: "a", file: "a.mp3", start: 0, duration: 1 },
+      { lineId: "b", file: "b.mp3", start: 1, duration: 1 },
+    ],
+    captions: [],
+    sfx: [{ id: "s", file: "s.mp3", start: 0, duration: 1 }],
+  });
+  assert.equal(audioClipCount(timeline), 3);
+  assert.equal(audioClipCount({ ...timeline, music: { file: "m.mp3", gainDb: -18, lane: [] } }), 4);
+  assert.equal(audioClipCount({ ...timeline, narration: [], sfx: [] }), 0);
+});
+
+test("checkStreams needs a video stream, and an audio one when the timeline has audio", () => {
+  checkStreams("video\naudio\n", 2, "r.mp4");
+  checkStreams("video\n", 0, "r.mp4");
+  assert.throws(() => checkStreams("audio\n", 0, "r.mp4"), /render produced no video stream: r.mp4/);
+  assert.throws(() => checkStreams("video\n", 2, "r.mp4"), /render produced no audio stream/);
+});
+
+test("lintProblems reports output that is not JSON", () => {
+  assert.throws(
+    () => lintProblems(`Error: boom ${"x".repeat(300)}`),
+    (err: Error) => {
+      assert.match(err.message, /^hyperframes lint printed non-JSON: Error: boom x+$/);
+      assert.equal(err.message.length, "hyperframes lint printed non-JSON: ".length + 200);
+      return true;
+    },
+  );
 });
 
 test("lintProblems passes a clean report and lists errors and warnings", () => {
