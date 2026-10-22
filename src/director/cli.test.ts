@@ -185,7 +185,8 @@ test("checkPlan fails on schema errors with their paths", () => {
   broken.chapters[0].scenes[0].fit = "wobble";
   const { ok, report } = checkPlan(broken, probe);
   assert.equal(ok, false);
-  assert.match(report, /error: chapters\.0\.scenes\.0\.fit/);
+  assert.match(report, /^error: edit-plan\.json:\n/);
+  assert.match(report, /chapters\[0\]\.scenes\[0\]\.fit/);
 });
 
 test("checkPlan fails on validation errors", () => {

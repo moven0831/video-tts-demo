@@ -185,7 +185,7 @@ test("narration a little longer than the scene does not warn", () => {
   assert.deepEqual(warnings, []);
 });
 
-test("warning: more than three callouts visible at once", () => {
+test("warning: more than two callouts visible at once", () => {
   const callout = (t0: number, t1: number) => ({
     ...structuredClone(scene1(base).callouts[0] ?? scene0(base).callouts[0]),
     t0,
@@ -194,13 +194,36 @@ test("warning: more than three callouts visible at once", () => {
   const crowd = [callout(4.5, 7), callout(5, 7), callout(5.5, 7), callout(6, 7)];
   const { errors, warnings } = check((p) => (scene1(p).callouts = crowd));
   assert.deepEqual(errors, []);
-  assert.deepEqual(warnings, ["chapters[0].scenes[1].callouts: more than 3 visible at t=6"]);
+  assert.deepEqual(warnings, ["chapters[0].scenes[1].callouts: more than 2 visible at t=5.5"]);
 });
 
-test("three callouts visible at once do not warn", () => {
+test("two callouts visible at once do not warn", () => {
   const callout = (t0: number, t1: number) => ({ ...structuredClone(scene0(base).callouts[0]), t0, t1 });
   const { warnings } = check((p) => {
-    scene1(p).callouts = [callout(4.5, 7), callout(5, 7), callout(5.5, 7)];
+    scene1(p).callouts = [callout(4.5, 7), callout(5, 7)];
   });
   assert.deepEqual(warnings, []);
+});
+
+test("error: sfx time outside its scene's window", () => {
+  const { errors } = check((p) => (p.audio.sfx[0].t = 5));
+  assert.deepEqual(errors, ["audio.sfx[0].t: 5 is outside the scene window 0-4"]);
+});
+
+test("warning: music file and prompt both set", () => {
+  const { errors, warnings } = check((p) => {
+    p.audio.music.file = "bed.mp3";
+    p.audio.music.prompt = "calm";
+  });
+  assert.deepEqual(errors, []);
+  assert.deepEqual(warnings, [
+    "audio.music: both file and prompt are set; the file is used and the prompt ignored",
+  ]);
+});
+
+test("warning: a font other than Inter", () => {
+  const { warnings } = check((p) => (p.style.font = "Comic Sans"));
+  assert.deepEqual(warnings, [
+    'style.font: only Inter is bundled, "Comic Sans" falls back to a system font',
+  ]);
 });

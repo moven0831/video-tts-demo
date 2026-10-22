@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import { z } from "zod";
 import { EditPlan, EditPlanDraft, sfxCues } from "./edit-plan.ts";
 
 const plan = JSON.parse(
@@ -106,4 +107,43 @@ test("music.file is a bare filename inside music/", () => {
   for (const bad of ["../bed.mp3", "/etc/passwd", "a/b.mp3", "a\\b.mp3", ".hidden.mp3", "..", ""]) {
     assert.throws(() => EditPlan.parse(withFile(bad)), bad);
   }
+});
+
+test("structured output keeps every bound and default in the field descriptions", () => {
+  const { schema } = zodOutputFormat(EditPlanDraft);
+  const descriptions = schemaNodes(schema).flatMap(({ node }) =>
+    typeof node.description === "string" ? [node.description] : [],
+  );
+  const has = (text: string) => descriptions.some((d) => d.includes(text));
+  assert.ok(has("{minimum: 0.5, maximum: 30}"), "sfx.sec bounds");
+  assert.ok(has("{minimum: 1, maximum: 9007199254740991}"), "box w and h minimum");
+  assert.ok(has("{default: 0.35, minimum: 0}"), "pauseAfter default");
+  assert.ok(has("{default: 3, minimum: 0}"), "Card.sec default");
+  assert.ok(has("{default: 0.5, minimum: 0}"), "transition.sec default");
+  assert.ok(has("{default: 0.7, minimum: 0}"), "moveSec default");
+  assert.ok(has("{default: -12, maximum: 0}"), "duckDb bound");
+  assert.ok(has("seconds of the source recording"));
+  assert.ok(has("source pixels"));
+});
+
+test("sfx length is 0.5 to 30 s and duckDb cannot raise the music", () => {
+  const sfx = (sec: number) => ({ scene: "a", t: 1, prompt: "p", sec });
+  const withSfx = (sec: number) => ({ ...plan, audio: { ...plan.audio, sfx: [sfx(sec)] } });
+  EditPlan.parse(withSfx(0.5));
+  EditPlan.parse(withSfx(30));
+  for (const bad of [0.4, 31]) assert.throws(() => EditPlan.parse(withSfx(bad)), String(bad));
+  const duck = (duckDb: number) => ({
+    ...plan,
+    audio: { ...plan.audio, music: { ...plan.audio.music, duckDb } },
+  });
+  EditPlan.parse(duck(0));
+  assert.throws(() => EditPlan.parse(duck(3)));
+});
+
+test("the committed JSON schema is current and does not require defaulted fields", () => {
+  const committed = JSON.parse(
+    readFileSync(new URL("./edit-plan.schema.json", import.meta.url), "utf8"),
+  );
+  assert.deepEqual(committed, JSON.parse(JSON.stringify(z.toJSONSchema(EditPlan, { io: "input" }))));
+  assert.ok(!committed.properties.style.required.includes("theme"));
 });

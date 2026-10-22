@@ -23,12 +23,14 @@
             "width": {
               "type": "integer",
               "minimum": 0,
-              "maximum": 9007199254740991
+              "maximum": 9007199254740991,
+              "description": "source pixels"
             },
             "height": {
               "type": "integer",
               "minimum": 0,
-              "maximum": 9007199254740991
+              "maximum": 9007199254740991,
+              "description": "source pixels"
             },
             "fps": {
               "type": "number",
@@ -36,7 +38,8 @@
             },
             "duration": {
               "type": "number",
-              "minimum": 0
+              "minimum": 0,
+              "description": "seconds of the source recording"
             }
           },
           "required": [
@@ -44,8 +47,7 @@
             "height",
             "fps",
             "duration"
-          ],
-          "additionalProperties": false
+          ]
         },
         "output": {
           "type": "object",
@@ -67,8 +69,7 @@
             "width",
             "height",
             "fps"
-          ],
-          "additionalProperties": false
+          ]
         }
       },
       "required": [
@@ -76,8 +77,7 @@
         "title",
         "source",
         "output"
-      ],
-      "additionalProperties": false
+      ]
     },
     "style": {
       "type": "object",
@@ -120,13 +120,7 @@
               "type": "number",
               "const": 2
             }
-          },
-          "required": [
-            "mode",
-            "maxCharsPerLine",
-            "maxLines"
-          ],
-          "additionalProperties": false
+          }
         },
         "camera": {
           "type": "object",
@@ -140,24 +134,16 @@
             "moveSec": {
               "default": 0.7,
               "type": "number",
-              "minimum": 0
+              "minimum": 0,
+              "description": "seconds a camera move takes, in the output"
             }
-          },
-          "required": [
-            "maxZoom",
-            "moveSec"
-          ],
-          "additionalProperties": false
+          }
         }
       },
       "required": [
-        "theme",
-        "accent",
-        "font",
         "captions",
         "camera"
-      ],
-      "additionalProperties": false
+      ]
     },
     "intro": {
       "type": "object",
@@ -182,7 +168,8 @@
         "sec": {
           "default": 3,
           "type": "number",
-          "minimum": 0
+          "minimum": 0,
+          "description": "seconds the card is shown, in the output"
         },
         "narration": {
           "default": [],
@@ -201,30 +188,27 @@
               },
               "at": {
                 "type": "number",
-                "minimum": 0
+                "minimum": 0,
+                "description": "seconds of the source recording"
               },
               "pauseAfter": {
                 "default": 0.35,
                 "type": "number",
-                "minimum": 0
+                "minimum": 0,
+                "description": "seconds of silence after the line, in the output"
               }
             },
             "required": [
               "id",
-              "text",
-              "pauseAfter"
-            ],
-            "additionalProperties": false
+              "text"
+            ]
           }
         }
       },
       "required": [
         "kind",
-        "title",
-        "sec",
-        "narration"
-      ],
-      "additionalProperties": false
+        "title"
+      ]
     },
     "outro": {
       "type": "object",
@@ -249,7 +233,8 @@
         "sec": {
           "default": 3,
           "type": "number",
-          "minimum": 0
+          "minimum": 0,
+          "description": "seconds the card is shown, in the output"
         },
         "narration": {
           "default": [],
@@ -268,30 +253,27 @@
               },
               "at": {
                 "type": "number",
-                "minimum": 0
+                "minimum": 0,
+                "description": "seconds of the source recording"
               },
               "pauseAfter": {
                 "default": 0.35,
                 "type": "number",
-                "minimum": 0
+                "minimum": 0,
+                "description": "seconds of silence after the line, in the output"
               }
             },
             "required": [
               "id",
-              "text",
-              "pauseAfter"
-            ],
-            "additionalProperties": false
+              "text"
+            ]
           }
         }
       },
       "required": [
         "kind",
-        "title",
-        "sec",
-        "narration"
-      ],
-      "additionalProperties": false
+        "title"
+      ]
     },
     "chapters": {
       "minItems": 1,
@@ -331,7 +313,8 @@
               "sec": {
                 "default": 3,
                 "type": "number",
-                "minimum": 0
+                "minimum": 0,
+                "description": "seconds the card is shown, in the output"
               },
               "narration": {
                 "default": [],
@@ -350,30 +333,27 @@
                     },
                     "at": {
                       "type": "number",
-                      "minimum": 0
+                      "minimum": 0,
+                      "description": "seconds of the source recording"
                     },
                     "pauseAfter": {
                       "default": 0.35,
                       "type": "number",
-                      "minimum": 0
+                      "minimum": 0,
+                      "description": "seconds of silence after the line, in the output"
                     }
                   },
                   "required": [
                     "id",
-                    "text",
-                    "pauseAfter"
-                  ],
-                  "additionalProperties": false
+                    "text"
+                  ]
                 }
               }
             },
             "required": [
               "kind",
-              "title",
-              "sec",
-              "narration"
-            ],
-            "additionalProperties": false
+              "title"
+            ]
           },
           "scenes": {
             "minItems": 1,
@@ -390,18 +370,19 @@
                   "properties": {
                     "in": {
                       "type": "number",
-                      "minimum": 0
+                      "minimum": 0,
+                      "description": "seconds of the source recording"
                     },
                     "out": {
                       "type": "number",
-                      "minimum": 0
+                      "minimum": 0,
+                      "description": "seconds of the source recording"
                     }
                   },
                   "required": [
                     "in",
                     "out"
-                  ],
-                  "additionalProperties": false
+                  ]
                 },
                 "fit": {
                   "default": "freeze",
@@ -429,20 +410,20 @@
                       },
                       "at": {
                         "type": "number",
-                        "minimum": 0
+                        "minimum": 0,
+                        "description": "seconds of the source recording"
                       },
                       "pauseAfter": {
                         "default": 0.35,
                         "type": "number",
-                        "minimum": 0
+                        "minimum": 0,
+                        "description": "seconds of silence after the line, in the output"
                       }
                     },
                     "required": [
                       "id",
-                      "text",
-                      "pauseAfter"
-                    ],
-                    "additionalProperties": false
+                      "text"
+                    ]
                   }
                 },
                 "camera": {
@@ -453,7 +434,8 @@
                     "properties": {
                       "t": {
                         "type": "number",
-                        "minimum": 0
+                        "minimum": 0,
+                        "description": "seconds of the source recording"
                       },
                       "box": {
                         "anyOf": [
@@ -463,22 +445,26 @@
                               "x": {
                                 "type": "integer",
                                 "minimum": 0,
-                                "maximum": 9007199254740991
+                                "maximum": 9007199254740991,
+                                "description": "source pixels"
                               },
                               "y": {
                                 "type": "integer",
                                 "minimum": 0,
-                                "maximum": 9007199254740991
+                                "maximum": 9007199254740991,
+                                "description": "source pixels"
                               },
                               "w": {
                                 "type": "integer",
                                 "minimum": 1,
-                                "maximum": 9007199254740991
+                                "maximum": 9007199254740991,
+                                "description": "source pixels"
                               },
                               "h": {
                                 "type": "integer",
                                 "minimum": 1,
-                                "maximum": 9007199254740991
+                                "maximum": 9007199254740991,
+                                "description": "source pixels"
                               }
                             },
                             "required": [
@@ -486,8 +472,7 @@
                               "y",
                               "w",
                               "h"
-                            ],
-                            "additionalProperties": false
+                            ]
                           },
                           {
                             "type": "null"
@@ -498,8 +483,7 @@
                     "required": [
                       "t",
                       "box"
-                    ],
-                    "additionalProperties": false
+                    ]
                   }
                 },
                 "clicks": {
@@ -510,17 +494,20 @@
                     "properties": {
                       "t": {
                         "type": "number",
-                        "minimum": 0
+                        "minimum": 0,
+                        "description": "seconds of the source recording"
                       },
                       "x": {
                         "type": "integer",
                         "minimum": 0,
-                        "maximum": 9007199254740991
+                        "maximum": 9007199254740991,
+                        "description": "source pixels"
                       },
                       "y": {
                         "type": "integer",
                         "minimum": 0,
-                        "maximum": 9007199254740991
+                        "maximum": 9007199254740991,
+                        "description": "source pixels"
                       },
                       "kind": {
                         "default": "click",
@@ -535,10 +522,8 @@
                     "required": [
                       "t",
                       "x",
-                      "y",
-                      "kind"
-                    ],
-                    "additionalProperties": false
+                      "y"
+                    ]
                   }
                 },
                 "callouts": {
@@ -549,11 +534,13 @@
                     "properties": {
                       "t0": {
                         "type": "number",
-                        "minimum": 0
+                        "minimum": 0,
+                        "description": "seconds of the source recording"
                       },
                       "t1": {
                         "type": "number",
-                        "minimum": 0
+                        "minimum": 0,
+                        "description": "seconds of the source recording"
                       },
                       "box": {
                         "type": "object",
@@ -561,22 +548,26 @@
                           "x": {
                             "type": "integer",
                             "minimum": 0,
-                            "maximum": 9007199254740991
+                            "maximum": 9007199254740991,
+                            "description": "source pixels"
                           },
                           "y": {
                             "type": "integer",
                             "minimum": 0,
-                            "maximum": 9007199254740991
+                            "maximum": 9007199254740991,
+                            "description": "source pixels"
                           },
                           "w": {
                             "type": "integer",
                             "minimum": 1,
-                            "maximum": 9007199254740991
+                            "maximum": 9007199254740991,
+                            "description": "source pixels"
                           },
                           "h": {
                             "type": "integer",
                             "minimum": 1,
-                            "maximum": 9007199254740991
+                            "maximum": 9007199254740991,
+                            "description": "source pixels"
                           }
                         },
                         "required": [
@@ -584,8 +575,7 @@
                           "y",
                           "w",
                           "h"
-                        ],
-                        "additionalProperties": false
+                        ]
                       },
                       "label": {
                         "type": "string",
@@ -617,24 +607,16 @@
                       "t0",
                       "t1",
                       "box",
-                      "label",
-                      "kind",
-                      "side"
-                    ],
-                    "additionalProperties": false
+                      "label"
+                    ]
                   }
                 }
               },
               "required": [
                 "id",
                 "source",
-                "fit",
-                "narration",
-                "camera",
-                "clicks",
-                "callouts"
-              ],
-              "additionalProperties": false
+                "narration"
+              ]
             }
           },
           "transition": {
@@ -656,23 +638,20 @@
               "sec": {
                 "default": 0.5,
                 "type": "number",
-                "minimum": 0
+                "minimum": 0,
+                "description": "seconds the transition takes, in the output"
               }
             },
             "required": [
-              "kind",
-              "sec"
-            ],
-            "additionalProperties": false
+              "kind"
+            ]
           }
         },
         "required": [
           "id",
           "title",
-          "scenes",
-          "transition"
-        ],
-        "additionalProperties": false
+          "scenes"
+        ]
       }
     },
     "audio": {
@@ -693,8 +672,7 @@
           "required": [
             "voiceId",
             "modelId"
-          ],
-          "additionalProperties": false
+          ]
         },
         "music": {
           "type": "object",
@@ -721,15 +699,10 @@
             },
             "duckDb": {
               "default": -12,
-              "type": "number"
+              "type": "number",
+              "maximum": 0
             }
-          },
-          "required": [
-            "file",
-            "gainDb",
-            "duckDb"
-          ],
-          "additionalProperties": false
+          }
         },
         "sfx": {
           "default": [],
@@ -743,7 +716,8 @@
               },
               "t": {
                 "type": "number",
-                "minimum": 0
+                "minimum": 0,
+                "description": "seconds of the source recording"
               },
               "prompt": {
                 "type": "string",
@@ -752,8 +726,9 @@
               },
               "sec": {
                 "type": "number",
-                "minimum": 0,
-                "maximum": 30
+                "minimum": 0.5,
+                "maximum": 30,
+                "description": "seconds of sound effect"
               }
             },
             "required": [
@@ -761,17 +736,14 @@
               "t",
               "prompt",
               "sec"
-            ],
-            "additionalProperties": false
+            ]
           }
         }
       },
       "required": [
         "voice",
-        "music",
-        "sfx"
-      ],
-      "additionalProperties": false
+        "music"
+      ]
     }
   },
   "required": [
@@ -780,6 +752,5 @@
     "style",
     "chapters",
     "audio"
-  ],
-  "additionalProperties": false
+  ]
 }

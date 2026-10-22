@@ -17,7 +17,8 @@ export const Probe = z.object({
 
 export const SceneCuts = z.array(z.object({ t: sec, score: z.number() }));
 
-// boxes[i] covers second i of the source; null means nothing changed. All in source pixels.
+// boxes[i] bounds what changed between the 1 fps samples at seconds i-1 and i, in source pixels.
+// It is null at i=0 and when under 0.2% of the pixels changed.
 export const Motion = z.object({
   boxes: z.array(z.object({ t: sec, box: Box.nullable() })),
   idle: z.array(z.object({ t0: sec, t1: sec })),

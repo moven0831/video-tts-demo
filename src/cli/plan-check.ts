@@ -1,5 +1,5 @@
-import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { z } from "zod";
 import { Probe } from "../schema/artifacts.ts";
 import { EditPlan } from "../schema/edit-plan.ts";
 import { validatePlan } from "../schema/validate.ts";
@@ -9,11 +9,14 @@ import { parseProjectArgs } from "../util/project.ts";
 
 const CHARS_PER_SEC = 15;
 
-export function checkPlan(planJson: unknown, probe: Probe): { ok: boolean; report: string } {
+export function checkPlan(
+  planJson: unknown,
+  probe: Probe,
+  path = "edit-plan.json",
+): { ok: boolean; report: string } {
   const parsed = EditPlan.safeParse(planJson);
   if (!parsed.success) {
-    const issues = parsed.error.issues.map((issue) => `error: ${issue.path.join(".")}: ${issue.message}`);
-    return { ok: false, report: issues.join("\n") };
+    return { ok: false, report: `error: ${path}:\n${z.prettifyError(parsed.error)}` };
   }
   const plan = parsed.data;
   const { errors, warnings } = validatePlan(plan, probe);
@@ -44,7 +47,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   await runMain(async () => {
     const { paths } = parseProjectArgs(process.argv.slice(2), {});
     const probe = await readJson(paths.probe, Probe);
-    const { ok, report } = checkPlan(JSON.parse(await readFile(paths.plan, "utf8")), probe);
+    const { ok, report } = checkPlan(await readJson(paths.plan, z.unknown()), probe, paths.plan);
     console.log(report);
     process.exitCode = ok ? 0 : 1;
   });

@@ -30,7 +30,8 @@ function clock(t: number): string {
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
 }
 
-// The manifest has no sheet pixel size, so sizes are the extent of the tiles.
+// The index has no sheet pixel size, so sizes are the extent of the tiles; this undercounts a
+// partly filled last sheet, which probe pads to the full canvas.
 // `file` in the index is relative to the build dir, as probe writes it.
 export async function loadSheets(indexPath: string, buildDir: string): Promise<Sheets> {
   const index = await readJson(indexPath, SheetIndex);

@@ -5,6 +5,6 @@ import { writeJson } from "../util/fs.ts";
 
 await runMain(async () => {
   const out = new URL("../schema/edit-plan.schema.json", import.meta.url);
-  await writeJson(out.pathname, z.toJSONSchema(EditPlan));
+  await writeJson(out.pathname, z.toJSONSchema(EditPlan, { io: "input" }));
   console.log(`wrote ${out.pathname}`);
 });

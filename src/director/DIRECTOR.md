@@ -11,8 +11,9 @@ camera moves, cards, captions, rendering.
   of every tile, in reading order (left to right, top to bottom), and the tile size in sheet pixels.
 - Scene cuts: seconds where the picture changed abruptly, with a score. Treat them as likely chapter
   or scene boundaries, not as certainties.
-- Motion: for each second, the bounding box of the pixels that changed (source pixels, or null when
-  nothing changed), plus idle spans. This is where the action is. Use it to place camera boxes and to
+- Motion: for each second i, the bounding box of what changed between the 1 fps samples at seconds
+  i-1 and i (source pixels). It is null at second 0 and when under 0.2% of the pixels changed. Idle
+  spans are listed too. This is where the action is. Use it to place camera boxes and to
   spot dead time.
 - Brief: optional notes from the user about audience, tone, target length, and lines they want said.
   The brief wins over your own taste. If it gives a target length, aim for it.
@@ -94,7 +95,8 @@ The camera starts at full frame (`box: null`) and moves only when a keyframe say
   source y = (py - ty) * height / th. Always work through the tile, never from the whole sheet.
 - Motion boxes are already in source pixels. Prefer them over eyeballing when they agree with what you
   see in the sheets.
-- Boxes must intersect the frame. Boxes you write slightly outside it are clamped with a warning.
+- Boxes must intersect the frame. A box partly outside it gets a warning: camera boxes are shifted
+  inside the frame, and callouts are drawn where you put them.
 
 ## Choosing `fit`
 
@@ -104,7 +106,8 @@ The camera starts at full frame (`box: null`) and moves only when a keyframe say
   Use it when the narration is longer than the action.
 - `slow` for short, fast actions that deserve a second look. The scene plays down to half speed to
   cover the narration, and any remainder freezes.
-- `hold` when narration and action are about the same length. The recording plays at normal speed.
+- `hold` when narration and action are about the same length. The recording plays at normal speed. If
+  the narration runs longer, it freezes on the last frame like `freeze`.
 - `trim` when the recording continues past the point being narrated, such as idle time at the end of a
   scene. The scene ends shortly after the narration does.
 
@@ -124,7 +127,7 @@ of one.
 - `audio.music`: `file: null`, plus a short `prompt` describing a quiet instrumental bed that suits the
   tone, unless the brief asks for none.
 - `audio.sfx`: leave empty unless the brief asks for sound effects. At most one cue per scene, with a
-  concrete short prompt.
+  concrete short prompt. `sec` is 0.5 to 30 seconds, and `t` lies inside the scene's source window.
 
 ## Before you answer
 

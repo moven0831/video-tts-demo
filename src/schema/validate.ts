@@ -4,7 +4,7 @@ import type { Box, EditPlan, Scene } from "./edit-plan.ts";
 export type Validation = { errors: string[]; warnings: string[] };
 
 const CHARS_PER_SEC = 15;
-const MAX_VISIBLE_CALLOUTS = 3;
+const MAX_VISIBLE_CALLOUTS = 2;
 const SOURCE_TOLERANCE = { width: 0, height: 0, fps: 0.01, duration: 0.05 };
 
 export function clampBox(box: Box, frame: Pick<Probe, "width" | "height">): Box | null {
@@ -120,11 +120,22 @@ export function validatePlan(plan: EditPlan, probe: Probe): Validation {
 
   if (plan.outro) checkLines(plan.outro.narration, "outro.narration");
 
-  const scenes = new Set(plan.chapters.flatMap((chapter) => chapter.scenes.map((s) => s.id)));
+  const scenes = new Map<string, Scene["source"]>();
+  for (const { id, source } of plan.chapters.flatMap((chapter) => chapter.scenes)) {
+    if (!scenes.has(id)) scenes.set(id, source);
+  }
   for (const [i, cue] of plan.audio.sfx.entries()) {
-    if (!scenes.has(cue.scene)) {
-      errors.push(`audio.sfx[${i}].scene: no scene "${cue.scene}"`);
-    }
+    const window = scenes.get(cue.scene);
+    if (window === undefined) errors.push(`audio.sfx[${i}].scene: no scene "${cue.scene}"`);
+    else inWindow(cue.t, window, `audio.sfx[${i}].t`);
+  }
+
+  const { music } = plan.audio;
+  if (music.file !== null && music.prompt) {
+    warnings.push("audio.music: both file and prompt are set; the file is used and the prompt ignored");
+  }
+  if (plan.style.font !== "Inter") {
+    warnings.push(`style.font: only Inter is bundled, "${plan.style.font}" falls back to a system font`);
   }
   return { errors, warnings };
 }

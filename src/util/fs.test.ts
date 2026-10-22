@@ -44,9 +44,25 @@ test("readJson returns parsed and defaulted data", async (t) => {
   assert.deepEqual(await readJson(file, schema), { n: 1, s: "x" });
 });
 
-test("readJson rejects data that fails the schema", async (t) => {
+test("readJson names the file and the field when the schema fails", async (t) => {
   const dir = await tmpDir(t);
   const file = join(dir, "a.json");
   await writeFile(file, '{"n":"one"}');
-  await assert.rejects(readJson(file, z.object({ n: z.number() })), z.ZodError);
+  await assert.rejects(readJson(file, z.object({ n: z.number() })), (err: Error) => {
+    assert.ok(err.message.startsWith(`${file}:\n`), err.message);
+    assert.match(err.message, /n/);
+    assert.ok(err.cause instanceof z.ZodError);
+    return true;
+  });
+});
+
+test("readJson names the file when the JSON is malformed", async (t) => {
+  const dir = await tmpDir(t);
+  const file = join(dir, "a.json");
+  await writeFile(file, "{ nope");
+  await assert.rejects(readJson(file, z.object({})), (err: Error) => {
+    assert.ok(err.message.startsWith(`${file}: `), err.message);
+    assert.ok(err.cause instanceof SyntaxError);
+    return true;
+  });
 });

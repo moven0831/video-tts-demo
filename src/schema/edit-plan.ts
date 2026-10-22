@@ -1,51 +1,65 @@
 import { z } from "zod";
 
-const sec = z.number().min(0);
-const px = z.number().int().min(0);
+// Each field gets its own instance. The structured-output transform keeps only the $ref of a
+// reused instance, which would drop a bound or default added on top of it.
+const sourceSec = () => z.number().min(0).describe("seconds of the source recording");
+const durationSec = () => z.number().min(0);
+const sourcePx = () => z.number().int().min(0).describe("source pixels");
 const slug = z.string().regex(/^[a-z0-9][a-z0-9-]*$/);
 const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
-export const Box = z.object({ x: px, y: px, w: px.min(1), h: px.min(1) });
+export const Box = z.object({
+  x: sourcePx(),
+  y: sourcePx(),
+  w: sourcePx().min(1),
+  h: sourcePx().min(1),
+});
+
+export const ClickKind = z.enum(["click", "double", "drag"]);
+export const CalloutKind = z.enum(["box", "arrow", "annotate"]);
+export const CalloutSide = z.enum(["auto", "top", "bottom", "left", "right"]);
+export const CardKind = z.enum(["title", "chapter", "outro"]);
+export const TransitionKind = z.enum(["cut", "fade-black", "dissolve", "push"]);
 
 const Line = z.object({
   id: slug,
   text: z.string().min(1).max(600),
-  at: sec.optional(),
-  pauseAfter: sec.default(0.35),
+  at: sourceSec().optional(),
+  pauseAfter: durationSec().describe("seconds of silence after the line, in the output").default(0.35),
 });
 
 const Card = z.object({
-  kind: z.enum(["title", "chapter", "outro"]),
+  kind: CardKind,
   title: z.string().min(1).max(60),
   subtitle: z.string().max(90).optional(),
-  sec: sec.default(3),
+  sec: durationSec().describe("seconds the card is shown, in the output").default(3),
   narration: z.array(Line).default([]),
 });
 
 const Scene = z.object({
   id: slug,
-  source: z.object({ in: sec, out: sec }),
+  source: z.object({ in: sourceSec(), out: sourceSec() }),
   fit: z.enum(["hold", "freeze", "slow", "trim"]).default("freeze"),
   narration: z.array(Line),
-  camera: z.array(z.object({ t: sec, box: Box.nullable() })).default([]),
+  camera: z.array(z.object({ t: sourceSec(), box: Box.nullable() })).default([]),
   clicks: z
     .array(
       z.object({
-        t: sec,
-        x: px,
-        y: px,
-        kind: z.enum(["click", "double", "drag"]).default("click"),
+        t: sourceSec(),
+        x: sourcePx(),
+        y: sourcePx(),
+        kind: ClickKind.default("click"),
       }),
     )
     .default([]),
   callouts: z
     .array(
       z.object({
-        t0: sec,
-        t1: sec,
+        t0: sourceSec(),
+        t1: sourceSec(),
         box: Box,
         label: z.string().min(1).max(40),
-        kind: z.enum(["box", "arrow", "annotate"]).default("box"),
-        side: z.enum(["auto", "top", "bottom", "left", "right"]).default("auto"),
+        kind: CalloutKind.default("box"),
+        side: CalloutSide.default("auto"),
       }),
     )
     .default([]),
@@ -58,8 +72,8 @@ const Chapter = z.object({
   scenes: z.array(Scene).min(1),
   transition: z
     .object({
-      kind: z.enum(["cut", "fade-black", "dissolve", "push"]),
-      sec: sec.default(0.5),
+      kind: TransitionKind,
+      sec: durationSec().describe("seconds the transition takes, in the output").default(0.5),
     })
     .default({ kind: "cut", sec: 0 }),
 });
@@ -69,7 +83,12 @@ export const EditPlan = z.object({
   meta: z.object({
     project: slug,
     title: z.string().min(1),
-    source: z.object({ width: px, height: px, fps: z.number().positive(), duration: sec }),
+    source: z.object({
+      width: sourcePx(),
+      height: sourcePx(),
+      fps: z.number().positive(),
+      duration: sourceSec(),
+    }),
     output: z.object({ width: z.literal(1920), height: z.literal(1080), fps: z.literal(30) }),
   }),
   style: z.object({
@@ -83,7 +102,7 @@ export const EditPlan = z.object({
     }),
     camera: z.object({
       maxZoom: z.number().min(1).max(3).default(2.4),
-      moveSec: sec.default(0.7),
+      moveSec: durationSec().describe("seconds a camera move takes, in the output").default(0.7),
     }),
   }),
   intro: Card.optional(),
@@ -96,10 +115,17 @@ export const EditPlan = z.object({
       file: z.string().regex(/^[^/\\.][^/\\]*$/).nullable().default(null),
       prompt: z.string().max(400).optional(),
       gainDb: z.number().default(-18),
-      duckDb: z.number().default(-12),
+      duckDb: z.number().max(0).default(-12),
     }),
     sfx: z
-      .array(z.object({ scene: slug, t: sec, prompt: z.string().min(1).max(200), sec: sec.max(30) }))
+      .array(
+        z.object({
+          scene: slug,
+          t: sourceSec(),
+          prompt: z.string().min(1).max(200),
+          sec: z.number().min(0.5).max(30).describe("seconds of sound effect"),
+        }),
+      )
       .default([]),
   }),
 });
