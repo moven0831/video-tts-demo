@@ -65,7 +65,7 @@ function voiceOf(durations: Record<string, number>, extra: Record<string, unknow
     lines: Object.fromEntries(
       Object.entries(durations).map(([id, duration]) => [
         id,
-        { file: `${id}.mp3`, duration, words: [{ text: "Words", start: 0, end: duration }] },
+        { file: `${id}.mp3`, key: "k", duration, words: [{ text: "Words", start: 0, end: duration }] },
       ]),
     ),
     sfx: {},
@@ -514,9 +514,9 @@ test("sfx get scene-index ids and mapped start times", () => {
   const voice = VoiceManifest.parse({
     lines: {},
     sfx: {
-      "s-0": { file: "s-0.mp3", duration: 0.5 },
-      "s-1": { file: "s-1.mp3", duration: 0.5 },
-      "u-0": { file: "u-0.mp3", duration: 0.7 },
+      "s-0": { file: "s-0.mp3", key: "k", duration: 0.5 },
+      "s-1": { file: "s-1.mp3", key: "k", duration: 0.5 },
+      "u-0": { file: "u-0.mp3", key: "k", duration: 0.7 },
     },
   });
   const { timeline } = buildTimeline(plan, probe, voice);
@@ -533,7 +533,7 @@ test("sfx get scene-index ids and mapped start times", () => {
 test("music comes from voice.json and carries a ducking lane", () => {
   const scene = { id: "s", lines: [{ id: "a" }] };
   const plan = planOf([{ id: "c", scenes: [scene] }], {}, { music: { file: "bed.mp3" } });
-  const voice = voiceOf({ a: 2 }, { music: { file: "../music/bed.mp3", duration: 30 } });
+  const voice = voiceOf({ a: 2 }, { music: { file: "../music/bed.mp3", key: "k", duration: 30 } });
   const { timeline, warnings } = buildTimeline(plan, probe, voice);
   assert.equal(timeline.music?.file, "../music/bed.mp3");
   assert.equal(timeline.music?.gainDb, -18);

@@ -1,8 +1,7 @@
 import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
 import type { Word } from "../schema/artifacts.ts";
 import type { CharAlignment } from "./align.ts";
-
-export const OUTPUT_FORMAT = "mp3_44100_128";
+import { OUTPUT_FORMAT } from "./keys.ts";
 
 export type TtsOptions = {
   voiceId: string;
@@ -12,7 +11,11 @@ export type TtsOptions = {
 };
 
 export interface Voice {
-  tts(text: string, opts: TtsOptions): Promise<{ audio: Buffer; alignment?: CharAlignment }>;
+  // `normalized` marks an alignment of the normalised text, so words may differ from the script.
+  tts(
+    text: string,
+    opts: TtsOptions,
+  ): Promise<{ audio: Buffer; alignment?: CharAlignment; normalized?: true }>;
   align(audio: Buffer, text: string): Promise<Word[]>;
   sfx(prompt: string, seconds: number): Promise<Buffer>;
   music(prompt: string, seconds: number): Promise<Buffer>;
@@ -23,8 +26,8 @@ async function toBuffer(stream: ReadableStream<Uint8Array>): Promise<Buffer> {
 }
 
 // The client is built on first use so dry runs work without ELEVENLABS_API_KEY.
-export function createElevenLabs(): Voice {
-  let instance: ElevenLabsClient | undefined;
+export function createElevenLabs(client?: ElevenLabsClient): Voice {
+  let instance = client;
   const lazy = () => (instance ??= new ElevenLabsClient());
   return {
     async tts(text, { voiceId, modelId, previousText, nextText }) {
@@ -35,10 +38,10 @@ export function createElevenLabs(): Voice {
         nextText,
         outputFormat: OUTPUT_FORMAT,
       });
-      return {
-        audio: Buffer.from(res.audioBase64, "base64"),
-        alignment: res.alignment ?? res.normalizedAlignment,
-      };
+      const audio = Buffer.from(res.audioBase64, "base64");
+      if (res.alignment) return { audio, alignment: res.alignment };
+      if (res.normalizedAlignment) return { audio, alignment: res.normalizedAlignment, normalized: true };
+      return { audio };
     },
     async align(audio, text) {
       const res = await lazy().forcedAlignment.create({

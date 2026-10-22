@@ -52,3 +52,25 @@ test("a stale .part from a crashed run is not a hit and is replaced", async (t) 
   assert.equal(await readFile(path, "utf8"), "whole");
   assert.deepEqual(await readdir(dir), ["k.mp3"]);
 });
+
+test("a failing check leaves nothing in the cache and passes the staged file", async (t) => {
+  const dir = await tmpDir(t);
+  let staged = "";
+  await assert.rejects(
+    writeCached(dir, "k", "mp3", async () => Buffer.from("bad"), async (file) => {
+      staged = file;
+      assert.equal(await readFile(file, "utf8"), "bad");
+      throw new Error("not audio");
+    }),
+    /not audio/,
+  );
+  assert.notEqual(staged, join(dir, "k.mp3"));
+  assert.deepEqual(await readdir(dir), []);
+});
+
+test("a passing check commits the staged file under the final name", async (t) => {
+  const dir = await tmpDir(t);
+  const path = await writeCached(dir, "k", "mp3", async () => Buffer.from("ok"), async () => {});
+  assert.equal(await readFile(path, "utf8"), "ok");
+  assert.deepEqual(await readdir(dir), ["k.mp3"]);
+});

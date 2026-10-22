@@ -1,7 +1,6 @@
 import { audioDuration } from "../probe/ffprobe.ts";
-import { EditPlan } from "../schema/edit-plan.ts";
+import { loadPlan } from "../schema/load.ts";
 import { EXIT_NEEDS_SPEND, runMain } from "../util/exec.ts";
-import { readJson } from "../util/fs.ts";
 import { parseProjectArgs } from "../util/project.ts";
 import { createElevenLabs } from "../voice/elevenlabs.ts";
 import { runAudition, runVoice } from "../voice/generate.ts";
@@ -27,7 +26,8 @@ await runMain(async () => {
       log,
     });
   } else {
-    const plan = await readJson(paths.plan, EditPlan);
+    const { plan, warnings } = await loadPlan(paths);
+    for (const warning of warnings) log(`warning: ${warning}`);
     const dryRun = values["dry-run"] ?? false;
     const manifest = await runVoice(plan, deps, paths, { yes, dryRun, log, env: process.env });
     if (!manifest && !dryRun) process.exitCode = EXIT_NEEDS_SPEND;

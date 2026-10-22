@@ -144,3 +144,8 @@ test("the repo's narration.txt yields a valid plan", () => {
   );
   assert.deepEqual(validatePlan(plan, probe).errors, []);
 });
+
+test("a malformed timestamp comment surfaces as a warning on the plan", () => {
+  const { warnings } = skeletonFromNarration("# 0:5\nOne.\n\nTwo.", probe, opts);
+  assert.ok(warnings.some((w) => w.includes('"# 0:5" is not a m:ss timestamp')), warnings.join("\n"));
+});

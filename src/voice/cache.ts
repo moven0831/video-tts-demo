@@ -1,4 +1,4 @@
-import { stat } from "node:fs/promises";
+import { rename, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { writeAtomic } from "../util/fs.ts";
 
@@ -16,14 +16,29 @@ export async function isCached(dir: string, key: string, ext: string): Promise<b
   }
 }
 
+// `check` sees the data staged under another name, so a bad clip never takes the cache slot.
 export async function writeCached(
   dir: string,
   key: string,
   ext: string,
   produce: () => Promise<Buffer>,
+  check?: (staged: string) => Promise<void>,
 ): Promise<string> {
   const path = cachePath(dir, key, ext);
   if (await isCached(dir, key, ext)) return path;
-  await writeAtomic(path, await produce());
+  const data = await produce();
+  if (!check) {
+    await writeAtomic(path, data);
+    return path;
+  }
+  const staged = cachePath(dir, key, `check.${ext}`);
+  await writeAtomic(staged, data);
+  try {
+    await check(staged);
+  } catch (err) {
+    await rm(staged, { force: true });
+    throw err;
+  }
+  await rename(staged, path);
   return path;
 }

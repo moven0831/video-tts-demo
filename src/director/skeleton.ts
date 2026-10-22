@@ -77,14 +77,17 @@ export function skeletonFromNarration(
   probe: Probe,
   opts: { project: string; title: string; voiceId: string; modelId: string },
 ): { plan: EditPlan; warnings: string[] } {
-  const segments = splitSegments(text);
+  const warnings: string[] = [];
+  const segments = splitSegments(text, (message) => warnings.push(message));
   if (segments.length > Math.floor(probe.duration)) {
     throw new Error(
       `${segments.length} narration blocks do not fit in ${probe.duration}s of video; ` +
         "shorten the narration or use a longer recording",
     );
   }
-  const { starts, warnings } = resolveStarts(segments, probe.duration);
+  const resolved = resolveStarts(segments, probe.duration);
+  const starts = resolved.starts;
+  warnings.push(...resolved.warnings);
   const plan = EditPlan.parse({
     version: 1,
     meta: {

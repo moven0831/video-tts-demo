@@ -2,6 +2,7 @@
   "lines": {
     "intro-1": {
       "file": "intro-1.mp3",
+      "key": "d752ed322df01739a1db45aaf5ebe8bd34274b43a94c44b139bb3a1c3d88fd49",
       "duration": 2.4,
       "words": [
         {
@@ -33,6 +34,7 @@
     },
     "open-1": {
       "file": "open-1.mp3",
+      "key": "677a92c7b44b5f6e98946b4d7146f7ae4b4a6a82d218abd4d38cca8899284753",
       "duration": 2,
       "words": [
         {
@@ -64,6 +66,7 @@
     },
     "open-2": {
       "file": "open-2.mp3",
+      "key": "ef7330f36fe0d085677caa68df18be39818c16f6050628134e3a59977f5bba8e",
       "duration": 1.6,
       "words": [
         {
@@ -105,6 +108,7 @@
     },
     "click-1": {
       "file": "click-1.mp3",
+      "key": "4ea3ad381379e68456d3242d089d27b2d794ef4e287ea6dabc9bcde509040572",
       "duration": 3,
       "words": [
         {
@@ -141,6 +145,7 @@
     },
     "outro-1": {
       "file": "outro-1.mp3",
+      "key": "fb1186f8b7907600e52a28a8575e891a7357a899a6f3fb730a021c5d71241c39",
       "duration": 2.2,
       "words": [
         {
@@ -174,6 +179,7 @@
   "sfx": {
     "open-app-0": {
       "file": "open-app-0.mp3",
+      "key": "6d1c1856573cb0f976110d48ab365b822cfa8ea2f0c09bde992aa71deff33d63",
       "duration": 0.5
     }
   }

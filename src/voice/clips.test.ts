@@ -66,3 +66,16 @@ test("a timestamp separated by a blank line does not carry over", () => {
 test("comments that only look like timestamps are plain comments", () => {
   assert.deepEqual(splitSegments("# 12\n# 0:5\n# v1:20x\nhello"), [{ text: "hello" }]);
 });
+
+test("a comment that starts with a digit but is not a timestamp warns", () => {
+  const warnings: string[] = [];
+  const segments = splitSegments("# 0:5\nhello\n\n# 0:05.5\nworld\n\n# note\nlast", (w) => warnings.push(w));
+  assert.deepEqual(
+    segments.map((s) => s.at),
+    [undefined, undefined, undefined],
+  );
+  assert.deepEqual(warnings, [
+    'block 1: "# 0:5" is not a m:ss timestamp, so it is ignored',
+    'block 2: "# 0:05.5" is not a m:ss timestamp, so it is ignored',
+  ]);
+});

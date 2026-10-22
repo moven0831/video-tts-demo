@@ -26,11 +26,15 @@ export const Motion = z.object({
 
 export const Word = z.object({ text: z.string(), start: sec, end: sec });
 
-// File paths are relative to the project's build/ dir.
+// File paths are relative to the project's build/ dir. `key` is the cache key the clip was made
+// under; staleVoice compares it with the plan's current key.
 export const VoiceManifest = z.object({
-  lines: z.record(z.string(), z.object({ file: z.string(), duration: sec, words: z.array(Word) })),
-  sfx: z.record(z.string(), z.object({ file: z.string(), duration: sec })),
-  music: z.object({ file: z.string(), duration: sec }).optional(),
+  lines: z.record(
+    z.string(),
+    z.object({ file: z.string(), key: z.string(), duration: sec, words: z.array(Word) }),
+  ),
+  sfx: z.record(z.string(), z.object({ file: z.string(), key: z.string(), duration: sec })),
+  music: z.object({ file: z.string(), key: z.string(), duration: sec }).optional(),
 });
 
 export type Probe = z.infer<typeof Probe>;

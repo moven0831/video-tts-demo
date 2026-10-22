@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -9,7 +9,9 @@ import { EditPlan } from "../schema/edit-plan.ts";
 import { projectPaths } from "../util/project.ts";
 import type { CharAlignment } from "./align.ts";
 import type { TtsOptions, Voice } from "./elevenlabs.ts";
-import { estimateVideoSeconds, narrationLines, runAudition, runVoice, sfxItems } from "./generate.ts";
+import { runAudition, runVoice } from "./generate.ts";
+import { estimateVideoSeconds, lineKey, narrationLines, sfxItems, sfxKey } from "./keys.ts";
+import { cachePath, isCached } from "./cache.ts";
 
 const fixture = EditPlan.parse(
   JSON.parse(readFileSync(new URL("../../test/fixtures/edit-plan.json", import.meta.url), "utf8")),
@@ -17,7 +19,9 @@ const fixture = EditPlan.parse(
 
 type Call = { method: string; args: unknown[] };
 
-function fakeVoice(opts: { alignment?: boolean } = {}) {
+function fakeVoice(
+  opts: { alignment?: boolean; normalized?: boolean; alignFails?: boolean; sfxAudio?: Buffer } = {},
+) {
   const calls: Call[] = [];
   const voice: Voice = {
     async tts(text: string, o: TtsOptions) {
@@ -30,16 +34,17 @@ function fakeVoice(opts: { alignment?: boolean } = {}) {
         characterStartTimesSeconds: characters.map((_, i) => i / 10),
         characterEndTimesSeconds: characters.map((_, i) => (i + 1) / 10),
       };
-      return { audio, alignment };
+      return opts.normalized ? { audio, alignment, normalized: true as const } : { audio, alignment };
     },
     async align(audio: Buffer, text: string) {
       calls.push({ method: "align", args: [audio.toString(), text] });
+      if (opts.alignFails) throw new Error("align down");
       const words: Word[] = text.split(" ").map((w, i) => ({ text: w, start: i, end: i + 0.5 }));
       return words;
     },
     async sfx(prompt: string, seconds: number) {
       calls.push({ method: "sfx", args: [prompt, seconds] });
-      return Buffer.from(`sfx:${prompt}`);
+      return opts.sfxAudio ?? Buffer.from(`sfx:${prompt}`);
     },
     async music(prompt: string, seconds: number) {
       calls.push({ method: "music", args: [prompt, seconds] });
@@ -320,4 +325,125 @@ test("\"default\" voice and model resolve from env, then the built-in fallbacks"
   await run(fallback.voice, {});
   const second = fallback.calls[0].args[1] as TtsOptions;
   assert.deepEqual([second.voiceId, second.modelId], ["JBFqnCBsd6RMkjVDRZzb", "eleven_v4"]);
+});
+
+const yesRun = { yes: true, dryRun: false, env: {} };
+
+test("a failed forced alignment keeps the paid tts audio; the retry only aligns", async (t) => {
+  const { paths, log, duration } = await setup(t);
+  const first = fakeVoice({ alignment: false, alignFails: true });
+  await assert.rejects(runVoice(fixture, { voice: first.voice, duration }, paths, { ...yesRun, log }), /align down/);
+  assert.deepEqual(first.calls.map((c) => c.method), ["tts", "align"]);
+
+  const [intro] = narrationLines(fixture);
+  const key = lineKey(intro, fixture.audio.voice.voiceId, fixture.audio.voice.modelId);
+  const dir = paths.cacheDir("voice");
+  assert.equal(await isCached(dir, key, "mp3"), false);
+  assert.equal(await isCached(dir, key, "tts.mp3"), true);
+
+  const retry = fakeVoice({ alignment: false });
+  const manifest = await runVoice(fixture, { voice: retry.voice, duration }, paths, { ...yesRun, log });
+  const ttsTexts = retry.calls.filter((c) => c.method === "tts").map((c) => (c.args as [string])[0]);
+  assert.ok(!ttsTexts.includes(intro.text), "the intro line is not synthesised again");
+  assert.deepEqual(
+    retry.calls.filter((c) => c.method === "align").map((c) => (c.args as [string, string])[1])[0],
+    intro.text,
+  );
+  assert.equal(manifest?.lines[intro.id].words[0].text, "Welcome");
+  assert.equal(await isCached(dir, key, "tts.mp3"), false);
+  assert.equal(await isCached(dir, key, "mp3"), true);
+});
+
+test("a new take overwrites the words an older take left behind", async (t) => {
+  const { paths, log, duration } = await setup(t);
+  const [intro] = narrationLines(fixture);
+  const key = lineKey(intro, fixture.audio.voice.voiceId, fixture.audio.voice.modelId);
+  const old = [{ text: "stale", start: 0, end: 1 }];
+  const dir = paths.cacheDir("voice");
+  await mkdir(dir, { recursive: true });
+  await writeFile(cachePath(dir, key, "align.json"), JSON.stringify(old));
+  const manifest = await runVoice(fixture, { voice: fakeVoice().voice, duration }, paths, { ...yesRun, log });
+  assert.equal(manifest?.lines[intro.id].words[0].text, "Welcome");
+});
+
+test("an empty clip never reaches the cache", async (t) => {
+  const { paths, log, duration } = await setup(t);
+  const { voice } = fakeVoice({ sfxAudio: Buffer.alloc(0) });
+  await assert.rejects(runVoice(fixture, { voice, duration }, paths, { ...yesRun, log }), /sfx open-app-0: .*empty clip/);
+  const cue = sfxItems(fixture)[0];
+  assert.equal(await isCached(paths.cacheDir("sfx"), sfxKey(cue.prompt, cue.sec), "mp3"), false);
+});
+
+test("a clip with no duration never reaches the cache", async (t) => {
+  const { paths, log } = await setup(t);
+  const { voice } = fakeVoice();
+  await assert.rejects(
+    runVoice(fixture, { voice, duration: async () => 0 }, paths, { ...yesRun, log }),
+    /intro-1: .*no duration/,
+  );
+  const [intro] = narrationLines(fixture);
+  const key = lineKey(intro, fixture.audio.voice.voiceId, fixture.audio.voice.modelId);
+  assert.equal(await isCached(paths.cacheDir("voice"), key, "tts.mp3"), false);
+  assert.equal(await isCached(paths.cacheDir("voice"), key, "mp3"), false);
+});
+
+test("a cached clip that fails to probe names the file and says to delete it", async (t) => {
+  const { paths, log, duration } = await setup(t);
+  await runVoice(fixture, { voice: fakeVoice().voice, duration }, paths, { ...yesRun, log });
+  const broken = async () => {
+    throw new Error("Invalid data");
+  };
+  await assert.rejects(
+    runVoice(fixture, { voice: fakeVoice().voice, duration: broken }, paths, { ...yesRun, log }),
+    (err: Error) => {
+      assert.match(err.message, new RegExp(`${paths.cacheDir("voice")}/[0-9a-f]{64}\\.mp3`));
+      assert.match(err.message, /delete it and rerun/);
+      return true;
+    },
+  );
+});
+
+test("the resolved voice and model are printed, with built-in defaults marked", async (t) => {
+  const plan = structuredClone(fixture);
+  plan.audio.voice = { voiceId: "default", modelId: "default" };
+  const { paths, lines, log, duration } = await setup(t);
+  await runVoice(plan, { voice: fakeVoice().voice, duration }, paths, { yes: false, dryRun: true, log, env: {} });
+  assert.ok(
+    lines.includes(
+      "voice JBFq… (built-in default; set ELEVENLABS_VOICE_ID), " +
+        "model eleven_v4 (built-in default; set ELEVENLABS_MODEL_ID)",
+    ),
+    lines.join("\n"),
+  );
+
+  lines.length = 0;
+  const env = { ELEVENLABS_VOICE_ID: "envVoice123", ELEVENLABS_MODEL_ID: "envModel" };
+  await runVoice(plan, { voice: fakeVoice().voice, duration }, paths, { ...yesRun, env, log });
+  assert.equal(lines[0], "voice envV… (from ELEVENLABS_VOICE_ID), model envModel (from ELEVENLABS_MODEL_ID)");
+
+  lines.length = 0;
+  await runVoice(fixture, { voice: fakeVoice().voice, duration }, paths, { ...yesRun, log });
+  assert.equal(lines[0], "voice JBFq…, model eleven_v4");
+});
+
+test("a normalised alignment is logged", async (t) => {
+  const { paths, lines, log, duration } = await setup(t);
+  await runVoice(fixture, { voice: fakeVoice({ normalized: true }).voice, duration }, paths, { ...yesRun, log });
+  assert.ok(lines.some((l) => l.startsWith("intro-1: alignment is of the normalised text")));
+});
+
+test("with lines cached, a new sfx cue or music prompt needs --yes and writes nothing", async (t) => {
+  const { paths, log, duration } = await setup(t);
+  await runVoice(fixture, { voice: fakeVoice().voice, duration }, paths, { ...yesRun, log });
+  await rm(paths.voice);
+
+  const moreSfx = structuredClone(fixture);
+  moreSfx.audio.sfx.push({ scene: "click-through", t: 6, prompt: "ding", sec: 1 });
+  for (const plan of [moreSfx, withMusic("calm piano")]) {
+    const { voice, calls } = fakeVoice();
+    const outcome = await runVoice(plan, { voice, duration }, paths, { yes: false, dryRun: false, log, env: {} });
+    assert.equal(outcome, undefined);
+    assert.deepEqual(calls, []);
+    await assert.rejects(stat(paths.voice), /ENOENT/);
+  }
 });
