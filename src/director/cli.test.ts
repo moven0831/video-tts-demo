@@ -11,6 +11,7 @@ import { runPlan, runPlanFromNarration } from "../cli/plan.ts";
 import type { Probe } from "../schema/artifacts.ts";
 import { capture, EXIT_NEEDS_SPEND } from "../util/exec.ts";
 import { projectPaths } from "../util/project.ts";
+import { ffmpegSkip } from "../util/skip.ts";
 import { estimateCost, estimateRequest, type PlanClient } from "./plan.ts";
 
 const fixture = JSON.parse(readFileSync("test/fixtures/edit-plan.json", "utf8"));
@@ -257,11 +258,9 @@ test("checkPlan fails on validation errors", () => {
   assert.match(report, /error: .*past the source duration 8/);
 });
 
-const hasFfmpeg = spawnSync("ffmpeg", ["-version"]).status === 0;
-
 test(
   "plan dry-run reads what the real probe writes",
-  { skip: hasFfmpeg ? false : "ffmpeg is not installed" },
+  { skip: ffmpegSkip() },
   async () => {
     const root = await mkdtemp(join(tmpdir(), "proj-"));
     try {

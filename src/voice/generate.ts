@@ -3,7 +3,7 @@ import { join, relative, resolve } from "node:path";
 import { VoiceManifest, Word } from "../schema/artifacts.ts";
 import type { EditPlan } from "../schema/edit-plan.ts";
 import { writeAtomic, writeJson } from "../util/fs.ts";
-import type { projectPaths } from "../util/project.ts";
+import type { ProjectPaths } from "../util/project.ts";
 import { wordsFromAlignment } from "./align.ts";
 import { cachePath, isCached, writeCached } from "./cache.ts";
 import type { Voice } from "./elevenlabs.ts";
@@ -20,7 +20,6 @@ import {
   type NarrationLine,
 } from "./keys.ts";
 
-type Paths = ReturnType<typeof projectPaths>;
 type Deps = { voice: Voice; duration: (file: string) => Promise<number> };
 type Options = {
   yes: boolean;
@@ -32,7 +31,7 @@ type Options = {
 export async function runVoice(
   plan: EditPlan,
   { voice, duration }: Deps,
-  paths: Paths,
+  paths: ProjectPaths,
   { yes, dryRun, log, env }: Options,
 ): Promise<VoiceManifest | undefined> {
   const { voiceId, modelId } = resolveVoice(plan.audio.voice, env);
@@ -180,7 +179,7 @@ export async function runVoice(
 
 export async function runAudition(
   { voice }: Pick<Deps, "voice">,
-  paths: Paths,
+  paths: ProjectPaths,
   opts: { text: string; voiceIds: string[]; modelId: string; yes: boolean; log: (line: string) => void },
 ): Promise<void> {
   const dir = paths.cacheDir("voice");

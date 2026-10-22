@@ -1,7 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadSheets } from "../director/images.ts";
 import {
@@ -16,17 +15,15 @@ import { skeletonFromNarration } from "../director/skeleton.ts";
 import { Motion, Probe, SceneCuts } from "../schema/artifacts.ts";
 import { EXIT_NEEDS_SPEND, runMain } from "../util/exec.ts";
 import { readJson, writeJson } from "../util/fs.ts";
-import { parseProjectArgs, projectPaths } from "../util/project.ts";
-
-type Paths = ReturnType<typeof projectPaths>;
+import { parseProjectArgs, type ProjectPaths } from "../util/project.ts";
 
 export async function runPlan(
-  paths: Paths,
+  paths: ProjectPaths,
   client: PlanClient,
   opts: { yes: boolean; force: boolean },
   log: (line: string) => void = console.log,
 ): Promise<"written" | "needs-spend"> {
-  const index = `${paths.sheets}/index.json`;
+  const index = paths.sheetsIndex;
   for (const file of [paths.probe, paths.scenes, paths.motion, index]) {
     if (!existsSync(file)) {
       throw new Error(`${file} is missing; run \`npm run probe -- ${paths.name}\` first`);
@@ -57,7 +54,7 @@ export async function runPlan(
 
   const { plan, warnings, usage } = await makePlan(client, input, {
     cacheDir,
-    rejectedPath: join(paths.build, "plan.rejected.json"),
+    rejectedPath: paths.planRejected,
   });
   await writeJson(paths.plan, plan);
   for (const warning of warnings) log(`warning: ${warning}`);
@@ -67,7 +64,7 @@ export async function runPlan(
 }
 
 export async function runPlanFromNarration(
-  paths: Paths,
+  paths: ProjectPaths,
   text: string,
   opts: { force: boolean },
   log: (line: string) => void = console.log,
