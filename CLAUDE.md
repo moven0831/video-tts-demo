@@ -22,5 +22,4 @@ render, mux, demo, clean, schema.
 - HyperFrames is pinned (`hyperframes@0.8.183`, plugin tag `v0.8.183`); upgrades go through smoke.
 - Planning over the API sends recording frames to Anthropic; check them for private content first.
 - Spending (`plan --yes`, `voice --yes`) needs an explicit yes. Secrets live in `.env.local`; never
-  read or print them. Check: `npm run check` (typecheck, tests, smoke with
-  `REQUIRE_SMOKE=1`, so a missing ffmpeg or browser fails; no network or keys)..
+  read or print them. Check: `npm run check` (typecheck, tests, smoke with REQUIRE_SMOKE=1; no keys).
