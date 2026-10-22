@@ -9,8 +9,9 @@ import { checkPlan } from "../cli/plan-check.ts";
 import { runProbe } from "../probe/run.ts";
 import { runPlan, runPlanFromNarration } from "../cli/plan.ts";
 import type { Probe } from "../schema/artifacts.ts";
+import { capture, EXIT_NEEDS_SPEND } from "../util/exec.ts";
 import { projectPaths } from "../util/project.ts";
-import type { PlanClient } from "./plan.ts";
+import { estimateCost, estimateRequest, type PlanClient } from "./plan.ts";
 
 const fixture = JSON.parse(readFileSync("test/fixtures/edit-plan.json", "utf8"));
 const probe: Probe = JSON.parse(readFileSync("test/fixtures/probe.json", "utf8"));
@@ -67,6 +68,65 @@ test("plan without --yes prints an estimate and calls nothing", async () => {
     assert.equal(calls.length, 0);
     assert.match(lines.join("\n"), /1 sheets, about \d+ input tokens/);
     assert.match(lines.join("\n"), /estimated cost \$\d/);
+    await assert.rejects(readFile(paths.plan));
+  });
+});
+
+test("the estimate says when there is no brief.md", async () => {
+  await withProject(async (paths) => {
+    const lines: string[] = [];
+    await runPlan(paths, fakeClient().client, { yes: false, force: false }, (l) => lines.push(l));
+    assert.ok(lines.includes("no brief.md; the director gets no brief"), lines.join("\n"));
+
+    await writeFile(paths.brief, "Short and friendly.");
+    lines.length = 0;
+    await runPlan(paths, fakeClient().client, { yes: false, force: false }, (l) => lines.push(l));
+    assert.ok(!lines.some((l) => l.includes("no brief.md")));
+  });
+});
+
+test("a cached plan is written without --yes and without a client call", async () => {
+  await withProject(async (paths) => {
+    await runPlan(paths, fakeClient().client, { yes: true, force: false }, () => {});
+    await rm(paths.plan);
+
+    const second = fakeClient();
+    const lines: string[] = [];
+    const outcome = await runPlan(paths, second.client, { yes: false, force: false }, (l) => lines.push(l));
+    assert.equal(outcome, "written");
+    assert.equal(second.calls.length, 0);
+    assert.deepEqual(JSON.parse(await readFile(paths.plan, "utf8")), fixture);
+    assert.ok(lines.includes("plan came from the cache"));
+  });
+});
+
+test("the estimate counts image tiles, text and the output range exactly", () => {
+  const params = {
+    model: "m",
+    max_tokens: 1,
+    system: "abcd",
+    messages: [{ role: "user" as const, content: [{ type: "text" as const, text: "x".repeat(96) }] }],
+  };
+  const est = estimateRequest(params, [
+    { width: 640, height: 360 },
+    { width: 1280, height: 720 },
+  ]);
+  // 23x13 and 46x26 tiles of 28 px, plus (96 + 4) characters at 4 per token
+  assert.equal(est.images, 2);
+  assert.equal(est.inputTokens, 299 + 1196 + 25);
+  assert.ok(Math.abs(est.low - (1520 * 4 + 8000 * 20) / 1e6) < 1e-9);
+  assert.ok(Math.abs(est.high - (1520 * 4 + 40000 * 20) / 1e6) < 1e-9);
+  assert.ok(Math.abs(estimateCost(1000, 2000) - 0.044) < 1e-9);
+});
+
+test("src/cli/plan.ts without --yes exits 3, prints the estimate and writes nothing", async () => {
+  await withProject(async (paths) => {
+    const { code, stdout } = await capture(join("node_modules", ".bin", "tsx"), ["src/cli/plan.ts", paths.root], {
+      env: { ANTHROPIC_API_KEY: "" },
+    });
+    assert.equal(code, EXIT_NEEDS_SPEND);
+    assert.match(stdout, /1 sheets, about \d+ input tokens/);
+    assert.match(stdout, /rerun with --yes to spend/);
     await assert.rejects(readFile(paths.plan));
   });
 });

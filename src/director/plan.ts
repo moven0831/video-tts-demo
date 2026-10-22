@@ -2,9 +2,10 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { BetaMessageStreamParams } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import { z } from "zod";
+import type { Probe } from "../schema/artifacts.ts";
 import { EditPlan, EditPlanDraft } from "../schema/edit-plan.ts";
 import { validatePlan } from "../schema/validate.ts";
-import { readJson, writeAtomic } from "../util/fs.ts";
+import { readJson, writeAtomic, writeJson } from "../util/fs.ts";
 import { sha256, stableStringify } from "../util/hash.ts";
 import { buildPlanRequest, type PlanInput } from "./prompt.ts";
 
@@ -70,10 +71,32 @@ export function planCachePath(params: BetaMessageStreamParams, cacheDir: string)
   return join(cacheDir, `${sha256(stableStringify(params))}.json`);
 }
 
+type Checked = { plan: EditPlan; warnings: string[] } | { errors: string[] };
+
+function checkReply(text: string, probe: Probe): Checked {
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch (err) {
+    return { errors: [`the reply is not valid JSON: ${err instanceof Error ? err.message : err}`] };
+  }
+  const draft = EditPlanDraft.safeParse(json);
+  if (!draft.success) return { errors: [z.prettifyError(draft.error)] };
+  const { width, height, fps, duration } = probe;
+  const full = EditPlan.safeParse({
+    ...draft.data,
+    meta: { ...draft.data.meta, source: { width, height, fps, duration } },
+  });
+  if (!full.success) return { errors: [z.prettifyError(full.error)] };
+  const { errors, warnings } = validatePlan(full.data, probe);
+  return errors.length > 0 ? { errors } : { plan: full.data, warnings };
+}
+
+// The reply was paid for, so a rejected one is kept for hand repair instead of being dropped.
 export async function makePlan(
   client: PlanClient,
   input: PlanInput,
-  opts: { cacheDir: string; env?: Record<string, string | undefined> },
+  opts: { cacheDir: string; rejectedPath: string; env?: Record<string, string | undefined> },
 ): Promise<PlanResult> {
   const params = buildPlanRequest(input, opts.env);
   const cacheFile = planCachePath(params, opts.cacheDir);
@@ -90,16 +113,23 @@ export async function makePlan(
         `${details?.explanation ?? "no explanation"}`,
     );
   }
-  if (message.stop_reason !== "end_turn") {
-    throw new Error(`the director stopped early: ${message.stop_reason}`);
-  }
 
   const text = message.content.map((block) => (block.type === "text" ? block.text : "")).join("");
-  const draft = EditPlanDraft.parse(JSON.parse(text));
-  const { width, height, fps, duration } = input.probe;
-  const plan = EditPlan.parse({ ...draft, meta: { ...draft.meta, source: { width, height, fps, duration } } });
-  const { errors, warnings } = validatePlan(plan, input.probe);
-  if (errors.length > 0) throw new Error(`the plan is invalid:\n${errors.join("\n")}`);
+  const reject = async (errors: string[], hint: string, headline?: string): Promise<never> => {
+    await writeJson(opts.rejectedPath, { text, errors });
+    const lines = headline ? [headline, ...errors] : errors;
+    throw new Error(`${lines.join("\n")}\nthe reply is saved in ${opts.rejectedPath}; ${hint}`);
+  };
+  if (message.stop_reason !== "end_turn") {
+    const hint = message.stop_reason === "max_tokens" ? "try a lower DEMO_EFFORT, then rerun" : "rerun";
+    return reject([`the director stopped early: ${message.stop_reason}`], hint);
+  }
+
+  const checked = checkReply(text, input.probe);
+  if ("errors" in checked) {
+    return reject(checked.errors, "fix it and save it as edit-plan.json, or rerun", "the plan is invalid:");
+  }
+  const { plan, warnings } = checked;
 
   await writeAtomic(cacheFile, `${JSON.stringify({ plan, warnings, usage: message.usage })}\n`);
   return { plan, warnings, usage: message.usage };

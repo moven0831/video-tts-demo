@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadSheets } from "../director/images.ts";
 import {
@@ -49,11 +50,15 @@ export async function runPlan(
     const est = estimateRequest(params, input.sheets.sizes);
     log(`${est.images} sheets, about ${est.inputTokens} input tokens`);
     log(`estimated cost $${est.low.toFixed(2)} to $${est.high.toFixed(2)}`);
+    if (input.brief === undefined) log("no brief.md; the director gets no brief");
     log("frames are sent to the Anthropic API; rerun with --yes to spend");
     return "needs-spend";
   }
 
-  const { plan, warnings, usage } = await makePlan(client, input, { cacheDir });
+  const { plan, warnings, usage } = await makePlan(client, input, {
+    cacheDir,
+    rejectedPath: join(paths.build, "plan.rejected.json"),
+  });
   await writeJson(paths.plan, plan);
   for (const warning of warnings) log(`warning: ${warning}`);
   log(usage ? `used ${formatUsage(usage)}` : "plan came from the cache");
