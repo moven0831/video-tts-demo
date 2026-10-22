@@ -86,7 +86,9 @@ test("narration lines follow output order and stitch to their neighbours", () =>
 
 test("chapter card lines come before the chapter's scene lines", () => {
   const plan = structuredClone(fixture);
-  plan.chapters[0].card!.narration = [{ id: "card-1", text: "Chapter one.", pauseAfter: 0.35 }];
+  const card = plan.chapters[0].card;
+  assert.ok(card);
+  card.narration = [{ id: "card-1", text: "Chapter one.", pauseAfter: 0.35 }];
   assert.deepEqual(
     narrationLines(plan).map((l) => l.id),
     ["intro-1", "card-1", "open-1", "open-2", "click-1", "outro-1"],

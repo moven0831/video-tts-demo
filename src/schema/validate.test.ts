@@ -123,7 +123,10 @@ test("error: duplicate chapter id", () => {
 });
 
 test("error: duplicate narration line id across cards and scenes", () => {
-  const { errors } = check((p) => (p.outro!.narration[0].id = "open-1"));
+  const { errors } = check((p) => {
+    assert.ok(p.outro);
+    p.outro.narration[0].id = "open-1";
+  });
   assert.deepEqual(errors, ['outro.narration[0]: duplicate line id "open-1"']);
 });
 
