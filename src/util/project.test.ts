@@ -42,6 +42,12 @@ test("every path sits where the layout puts it", () => {
   assert.equal(p.finalContact, "/r/p/out/contact.jpg");
 });
 
+test("sheets index and the rejected plan live in build/", () => {
+  const p = projectPaths("/r/p");
+  assert.equal(p.sheetsIndex, "/r/p/build/sheets/index.json");
+  assert.equal(p.planRejected, "/r/p/build/plan.rejected.json");
+});
+
 test("stageHash and cacheDir build on the build dir", () => {
   const p = projectPaths("/r/p");
   assert.equal(p.stageHash("voice"), join("/r/p/build", "voice.hash"));

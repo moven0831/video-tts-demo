@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, open, readdir, readFile, rm, stat, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,9 +7,10 @@ import { Motion, Probe, SceneCuts } from "../schema/artifacts.ts";
 import { run } from "../util/exec.ts";
 import { readJson } from "../util/fs.ts";
 import { projectPaths } from "../util/project.ts";
+import { ffmpegSkip } from "../util/skip.ts";
 import { runProbe } from "./run.ts";
 
-const skip = spawnSync("ffmpeg", ["-version"]).error ? "ffmpeg is not installed" : false;
+const skip = ffmpegSkip();
 
 test("probes a 6 s clip and skips an unchanged rerun", { skip }, async (t: TestContext) => {
   const dir = await mkdtemp(join(tmpdir(), "probe-test-"));
@@ -36,6 +36,11 @@ test("probes a 6 s clip and skips an unchanged rerun", { skip }, async (t: TestC
   await stat(paths.contact);
 
   assert.equal(await runProbe(paths, { force: false }), "skipped");
+  for (const output of [paths.probe, paths.scenes, paths.motion, paths.sheetsIndex, paths.contact]) {
+    await rm(output);
+    assert.equal(await runProbe(paths, { force: false }), "done", `${output} was removed`);
+    assert.equal(await runProbe(paths, { force: false }), "skipped");
+  }
   assert.equal(await runProbe(paths, { force: true }), "done");
 
   const { size, atime, mtime } = await stat(paths.input);
@@ -43,7 +48,7 @@ test("probes a 6 s clip and skips an unchanged rerun", { skip }, async (t: TestC
   await utimes(paths.input, atime, later);
   assert.equal(await runProbe(paths, { force: false }), "done");
 
-  // Same size and mtime with different bytes counts as unchanged: the probe never reads the file.
+  // Freshness comes from size and mtime, not the bytes.
   const handle = await open(paths.input, "r+");
   await handle.write(Buffer.from([0xff]), 0, 1, size - 1);
   await handle.close();

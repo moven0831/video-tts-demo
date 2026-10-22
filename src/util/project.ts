@@ -2,6 +2,15 @@ import { basename, join, resolve } from "node:path";
 import { parseArgs, type ParseArgsOptionsConfig } from "node:util";
 
 export type CacheKind = "plan" | "voice" | "sfx" | "music";
+export type StageName =
+  | "probe"
+  | "plan"
+  | "plan-check"
+  | "voice"
+  | "timeline"
+  | "compose"
+  | "render"
+  | "mux";
 
 export function projectPaths(arg: string) {
   const root = resolve(arg.includes("/") ? arg : join("projects", arg));
@@ -20,8 +29,10 @@ export function projectPaths(arg: string) {
     motion: join(build, "motion.json"),
     frames: join(build, "frames"),
     sheets: join(build, "sheets"),
+    sheetsIndex: join(build, "sheets", "index.json"),
     contact: join(build, "contact.jpg"),
     cache: join(build, "cache"),
+    planRejected: join(build, "plan.rejected.json"),
     voice: join(build, "voice.json"),
     timeline: join(build, "timeline.json"),
     captionsSrt: join(build, "captions.srt"),
@@ -33,11 +44,13 @@ export function projectPaths(arg: string) {
     finalSrt: join(out, "final.srt"),
     finalVtt: join(out, "final.vtt"),
     finalContact: join(out, "contact.jpg"),
-    stageHash: (stage: string) => join(build, `${stage}.hash`),
-    demoHash: (stage: string) => join(build, `${stage}.demo.hash`),
+    stageHash: (stage: StageName) => join(build, `${stage}.hash`),
+    demoHash: (stage: StageName) => join(build, `${stage}.demo.hash`),
     cacheDir: (kind: CacheKind) => join(build, "cache", kind),
   };
 }
+
+export type ProjectPaths = ReturnType<typeof projectPaths>;
 
 export function parseProjectArgs<const O extends ParseArgsOptionsConfig>(
   argv: string[],
