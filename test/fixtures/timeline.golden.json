@@ -100,7 +100,7 @@
   "transitions": [
     {
       "kind": "fade-black",
-      "at": 15.65,
+      "start": 15.65,
       "duration": 0.5
     }
   ],
@@ -180,5 +180,6 @@
       "start": 8.55,
       "duration": 0.5
     }
-  ]
+  ],
+  "warnings": []
 }

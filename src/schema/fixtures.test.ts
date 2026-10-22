@@ -11,7 +11,7 @@ test("every fixture validates against its schema", async () => {
   await readJson(fixture("probe.json"), Probe);
   await readJson(fixture("edit-plan.json"), EditPlan);
   await readJson(fixture("voice.json"), VoiceManifest);
-  await readJson(fixture("timeline.json"), Timeline);
+  await readJson(fixture("timeline.golden.json"), Timeline);
 });
 
 test("voice.json covers every narration line in the plan", async () => {
@@ -28,7 +28,7 @@ test("voice.json covers every narration line in the plan", async () => {
 
 test("timeline.json narrates every voice line inside the total", async () => {
   const voice = await readJson(fixture("voice.json"), VoiceManifest);
-  const timeline = await readJson(fixture("timeline.json"), Timeline);
+  const timeline = await readJson(fixture("timeline.golden.json"), Timeline);
   assert.deepEqual(
     timeline.narration.map((n) => n.lineId).sort(),
     Object.keys(voice.lines).sort(),

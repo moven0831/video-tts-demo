@@ -1,6 +1,7 @@
 import { basename } from "node:path";
 import type { EditPlan } from "../schema/edit-plan.ts";
 import type { Timeline } from "../timeline/types.ts";
+import { OUTPUT_FPS } from "../timeline/grid.ts";
 import { cardFile, cardMotion } from "./templates/card.ts";
 import { esc, num } from "./templates/esc.ts";
 import { calloutFragment, clickFragment, OVERLAY_CSS, viewAt } from "./templates/overlay.ts";
@@ -9,11 +10,10 @@ import { VENDORED } from "./vendor.ts";
 export type ComposeResult = {
   files: Record<string, string>;
   copies: { from: string; to: string }[];
-  stills: { scene: string; at: number; to: string }[];
+  stills: { scene: string; mediaStart: number; at: number; to: string }[];
   warnings: string[];
 };
 
-const FPS = 30;
 const FADE_SEC = 0.3;
 const EDGE = 0.05;
 
@@ -88,13 +88,13 @@ function transitionJs(timeline: Timeline, warnings: string[]): string[] {
     if (tr.kind === "fade-black") {
       const h = num(Math.min(FADE_SEC, Math.max(tr.duration / 2, 0.1)));
       js.push(
-        `tl.to("#fade", { opacity: 1, duration: ${h}, ease: "power1.in" }, ${num(Math.max(0, tr.at - h))});`,
-        `tl.to("#fade", { opacity: 0, duration: ${h}, ease: "power1.out" }, ${num(tr.at + tr.duration)});`,
+        `tl.to("#fade", { opacity: 1, duration: ${h}, ease: "power1.in" }, ${num(Math.max(0, tr.start - h))});`,
+        `tl.to("#fade", { opacity: 0, duration: ${h}, ease: "power1.out" }, ${num(tr.start + tr.duration)});`,
       );
       continue;
     }
-    if (tr.kind === "push") warnings.push(`transition "push" at ${tr.at}s falls back to dissolve`);
-    const end = tr.at + tr.duration;
+    if (tr.kind === "push") warnings.push(`transition "push" at ${tr.start}s falls back to dissolve`);
+    const end = tr.start + tr.duration;
     const items = [
       ...timeline.cards.map((c) => ({ sel: `#card-${c.id}`, start: c.start, end: c.start + c.duration })),
       ...timeline.segments.flatMap((s) => [
@@ -104,12 +104,12 @@ function transitionJs(timeline: Timeline, warnings: string[]): string[] {
     ];
     for (const item of items) {
       const sel = JSON.stringify(item.sel);
-      if (item.start >= tr.at - EDGE && item.start <= end + EDGE) {
+      if (item.start >= tr.start - EDGE && item.start <= end + EDGE) {
         js.push(
           `tl.fromTo(${sel}, { opacity: 0 }, { opacity: 1, duration: ${num(tr.duration)}, ease: "none" }, ${num(item.start)});`,
         );
       }
-      if (item.end >= tr.at - EDGE && item.end <= end + EDGE) {
+      if (item.end >= tr.start - EDGE && item.end <= end + EDGE) {
         js.push(
           `tl.to(${sel}, { opacity: 0, duration: ${num(tr.duration)}, ease: "none" }, ${num(item.end - tr.duration)});`,
         );
@@ -198,7 +198,9 @@ export function compose(timeline: Timeline, plan: EditPlan): ComposeResult {
   ];
 
   const stills = timeline.segments.flatMap((s) =>
-    s.freeze ? [{ scene: s.scene, at: s.freeze.at, to: `assets/freeze-${s.scene}.png` }] : [],
+    s.freeze
+      ? [{ scene: s.scene, mediaStart: num(s.in), at: s.freeze.at, to: `assets/freeze-${s.scene}.png` }]
+      : [],
   );
 
   files["index.html"] = `<!doctype html>
@@ -214,7 +216,7 @@ ${BASE_CSS}${OVERLAY_CSS}
     </style>
   </head>
   <body>
-    <div id="root" data-composition-id="demo" data-start="0" data-duration="${num(timeline.total)}" data-width="${stage.width}" data-height="${stage.height}" data-fps="${FPS}">
+    <div id="root" data-composition-id="demo" data-start="0" data-duration="${num(timeline.total)}" data-width="${stage.width}" data-height="${stage.height}" data-fps="${OUTPUT_FPS}">
       <div class="cam" id="cam">
         ${timeline.segments.map((s) => segmentHtml(s, timeline)).join("\n        ")}
         ${overlays.map((o) => o.html).join("\n        ")}

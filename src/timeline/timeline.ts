@@ -10,6 +10,7 @@ import {
 } from "./camera.ts";
 import { buildCaptions } from "./captions.ts";
 import { duckingLane } from "./ducking.ts";
+import { lastShownFrame, OUTPUT_FPS } from "./grid.ts";
 import { Timeline } from "./types.ts";
 
 const LEAD_IN_SEC = 0.2;
@@ -18,6 +19,7 @@ const FREEZE_TAIL_SEC = 0.6;
 const TRIM_TAIL_SEC = 0.8;
 const MAX_FREEZE_SEC = 6;
 const MIN_RATE = 0.5;
+const MUSIC_SLACK_SEC = 0.1;
 const EPSILON = 1e-6;
 
 type SegmentPlan = { rate: number; videoSec: number; freezeSec: number; total: number };
@@ -37,14 +39,10 @@ function planSegment(fit: Scene["fit"], sourceSec: number, speechSec: number): S
   return { rate: 1, videoSec: sourceSec, freezeSec, total: sourceSec + freezeSec };
 }
 
-// The video plays frames round(in * fps) up to ceil(out * fps) - 1; this is the time of the last.
-function lastFrameTime(sourceIn: number, sourceOut: number, fps: number): number {
-  const first = Math.round(sourceIn * fps);
-  return Math.max(first, Math.ceil(sourceOut * fps - EPSILON) - 1) / fps;
-}
+const round6 = (value: number) => Math.round(value * 1e6) / 1e6;
 
 function round(value: unknown): unknown {
-  if (typeof value === "number") return Math.round(value * 1e6) / 1e6;
+  if (typeof value === "number") return round6(value);
   if (Array.isArray(value)) return value.map(round);
   if (value === null || typeof value !== "object") return value;
   return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, round(item)]));
@@ -104,16 +102,16 @@ export function buildTimeline(
       }
       if (kind === "fade-black") resetCamera(cursor + sec / 2);
       if (kind === "cut") {
-        out.transitions.push({ kind, at: cursor, duration: 0 });
+        out.transitions.push({ kind, start: cursor, duration: 0 });
       } else if (kind === "fade-black") {
-        out.transitions.push({ kind, at: cursor, duration: sec });
+        out.transitions.push({ kind, start: cursor, duration: sec });
         cursor += sec;
       } else {
         if (kind === "push") warnings.push("push transition is not implemented; using dissolve");
         const overlap = Math.min(sec, lastDuration);
         revealSec = overlap;
         cursor -= overlap;
-        out.transitions.push({ kind, at: cursor, duration: overlap });
+        out.transitions.push({ kind, start: cursor, duration: overlap });
       }
       pending = null;
     }
@@ -128,7 +126,10 @@ export function buildTimeline(
   const addNarration = (line: Line, start: number) => {
     const entry = voiceLine(line.id);
     if (start < lastNarrationEnd - EPSILON) {
-      warnings.push(`narration "${line.id}" starts before the previous line ends`);
+      throw new Error(
+        `narration "${line.id}" starts at ${start.toFixed(2)} s, before the previous line ends ` +
+          `at ${lastNarrationEnd.toFixed(2)} s; shorten the transition into it`,
+      );
     }
     lastNarrationEnd = Math.max(lastNarrationEnd, start + entry.duration);
     out.narration.push({ lineId: line.id, file: entry.file, start, duration: entry.duration });
@@ -200,6 +201,7 @@ export function buildTimeline(
     if (freezeSec > MAX_FREEZE_SEC) {
       warnings.push(`scene "${scene.id}" freezes the last frame for ${freezeSec.toFixed(1)} s`);
     }
+    const freezeStart = round6(start + segment.videoSec);
     out.segments.push({
       scene: scene.id,
       start,
@@ -210,7 +212,9 @@ export function buildTimeline(
       ...(freezeSec > EPSILON
         ? {
             freeze: {
-              at: lastFrameTime(sourceIn, sourceIn + segment.videoSec * segment.rate, probe.fps),
+              at:
+                Math.round(sourceIn * 1000) / 1000 +
+                lastShownFrame(round6(start), freezeStart, segment.rate) / OUTPUT_FPS,
               start: start + segment.videoSec,
               duration: freezeSec,
             },
@@ -261,8 +265,11 @@ export function buildTimeline(
   }
 
   const captions = buildCaptions(words).map((cue) => ({ ...cue, end: Math.min(cue.end, total) }));
-  if (!voice.music && (plan.audio.music.file !== null || plan.audio.music.prompt)) {
-    warnings.push("music is set in the plan but not in voice.json; rerun npm run voice");
+  if (voice.music && voice.music.duration < total - MUSIC_SLACK_SEC) {
+    warnings.push(
+      `music is ${voice.music.duration.toFixed(1)} s but the video is ${total.toFixed(1)} s; ` +
+        "it will stop early",
+    );
   }
   const music = voice.music
     ? {
@@ -294,6 +301,7 @@ export function buildTimeline(
       camera,
       captions,
       ...(music ? { music } : {}),
+      warnings,
     }),
   );
   return { timeline, warnings };

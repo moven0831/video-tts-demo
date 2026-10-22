@@ -1,13 +1,21 @@
 import { z } from "zod";
+import {
+  CalloutKind,
+  CalloutSide,
+  CardKind,
+  ClickKind,
+  TransitionKind,
+} from "../schema/edit-plan.ts";
 
 const sec = z.number().min(0);
 const StageBox = z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() });
 
 // Narration, sfx and music `file` paths are relative to the project's build/ dir. Click and callout
 // geometry is stage pixels before the camera transform (compose puts both inside the camera layer);
-// camera x/y/scale are that transform. Times are output seconds unless named in/out/at (source
-// seconds). A segment spans its video part plus its freeze: the video plays source in..out at
-// `rate` from `start`, and the freeze still follows at freeze.start.
+// camera x/y/scale are that transform. Times are output seconds, except segment `in`, `out` and
+// `freeze.at`, which are source seconds. A segment spans its video part plus its freeze: the video
+// plays source in..out at `rate` from `start`, then the freeze-frame image shows from freeze.start
+// to end. `freeze.at` is the source time of the last frame the video part shows; see grid.ts.
 export const Timeline = z.object({
   total: sec,
   stage: z.object({ width: z.number().int().positive(), height: z.number().int().positive() }),
@@ -34,14 +42,14 @@ export const Timeline = z.object({
     }),
   ),
   clicks: z.array(
-    z.object({ t: sec, x: z.number(), y: z.number(), kind: z.enum(["click", "double", "drag"]) }),
+    z.object({ t: sec, x: z.number(), y: z.number(), kind: ClickKind }),
   ),
   callouts: z.array(
     z.object({
       box: StageBox,
       label: z.string(),
-      kind: z.enum(["box", "arrow", "annotate"]),
-      side: z.enum(["auto", "top", "bottom", "left", "right"]),
+      kind: CalloutKind,
+      side: CalloutSide,
       t0: sec,
       t1: sec,
     }),
@@ -49,7 +57,7 @@ export const Timeline = z.object({
   cards: z.array(
     z.object({
       id: z.string(),
-      kind: z.enum(["title", "chapter", "outro"]),
+      kind: CardKind,
       title: z.string(),
       subtitle: z.string().optional(),
       start: sec,
@@ -58,8 +66,8 @@ export const Timeline = z.object({
   ),
   transitions: z.array(
     z.object({
-      kind: z.enum(["cut", "fade-black", "dissolve", "push"]),
-      at: sec,
+      kind: TransitionKind,
+      start: sec,
       duration: sec,
     }),
   ),
@@ -75,6 +83,7 @@ export const Timeline = z.object({
       lane: z.array(z.object({ t: sec, db: z.number() })),
     })
     .optional(),
+  warnings: z.array(z.string()).optional(),
 });
 
 export type Timeline = z.infer<typeof Timeline>;

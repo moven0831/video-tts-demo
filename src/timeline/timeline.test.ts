@@ -59,7 +59,6 @@ function planOf(
   });
 }
 
-// Each line id maps to its duration in seconds.
 function voiceOf(durations: Record<string, number>, extra: Record<string, unknown> = {}) {
   return VoiceManifest.parse({
     lines: Object.fromEntries(
@@ -118,7 +117,7 @@ test("freeze holds the last frame for the overrun plus 0.6 s", () => {
   near(segment.freeze?.at, 6 - 1 / 30);
 });
 
-test("freeze.at is the source time of the last frame the video plays, at any frame rate", () => {
+test("freeze.at is the source time of the last output frame, whatever the source fps", () => {
   for (const fps of [24, 30, 60, 30000 / 1001]) {
     const scene = { id: "s", source: { in: 4.05, out: 6.3 }, lines: [{ id: "a" }] };
     const { timeline } = buildTimeline(
@@ -126,10 +125,23 @@ test("freeze.at is the source time of the last frame the video plays, at any fra
       Probe.parse({ ...probe, fps }),
       voiceOf({ a: 4 }),
     );
-    const at = timeline.segments[0].freeze?.at ?? NaN;
-    assert.equal(Math.round(at * fps), Math.ceil(6.3 * fps - 1e-6) - 1, `fps ${fps}`);
-    assert.ok(at < 6.3 && at >= 6.3 - 1 / fps - 1e-5, `fps ${fps}`);
+    // The video part lasts 2.25 s, so its last output frame is the 68th: extracted frame 67.
+    near(timeline.segments[0].freeze?.at, 4.05 + 67 / 30);
   }
+});
+
+test("freeze.at follows an off-grid start and the playback rate", () => {
+  const card = { kind: "title", title: "T", sec: 1.02 };
+  const plan = planOf(
+    [{ id: "c", scenes: [{ id: "s", source: { in: 0, out: 3 }, fit: "slow", lines: [{ id: "a" }] }] }],
+    { intro: card },
+  );
+  const { timeline } = buildTimeline(plan, probe, voiceOf({ a: 8 }));
+  const segment = timeline.segments[0];
+  near(segment.start, 1.02);
+  near(segment.rate, 0.5);
+  // Video part 1.02..7.02; its last output frame is 210 at 7 s, local 5.98 s, source frame 89.
+  near(segment.freeze?.at, 89 / 30);
 });
 
 test("a freeze over 6 s warns", () => {
@@ -222,7 +234,7 @@ test("a scene grows when `at` pushes narration past its end", () => {
   const scene = { id: "s", source: { in: 0, out: 3 }, lines: [{ id: "a", at: 2.5 }] };
   const { timeline, segment } = build(scene, { a: 1 });
   near(timeline.narration[0].start, 2.5);
-  // Speech now ends at 3.85, past the 3 s source: freeze for 0.85 + 0.6.
+  // Narration plus its 0.35 s pause ends at 3.85.
   near(segment.end, 3.85 + 0.6);
   near(segment.freeze?.duration, 0.85 + 0.6);
 });
@@ -297,28 +309,28 @@ function twoChapters(transition?: { kind: string; sec: number }) {
 
 test("cut adds no time", () => {
   const { timeline } = twoChapters({ kind: "cut", sec: 0 });
-  assert.deepEqual(timeline.transitions, [{ kind: "cut", at: 4, duration: 0 }]);
+  assert.deepEqual(timeline.transitions, [{ kind: "cut", start: 4, duration: 0 }]);
   assert.equal(timeline.segments[1].start, 4);
   assert.equal(timeline.total, 7);
 });
 
 test("fade-black inserts a gap that adds to the total", () => {
   const { timeline } = twoChapters({ kind: "fade-black", sec: 0.5 });
-  assert.deepEqual(timeline.transitions, [{ kind: "fade-black", at: 4, duration: 0.5 }]);
+  assert.deepEqual(timeline.transitions, [{ kind: "fade-black", start: 4, duration: 0.5 }]);
   assert.equal(timeline.segments[1].start, 4.5);
   assert.equal(timeline.total, 7.5);
 });
 
 test("dissolve overlaps the next item and shrinks the total", () => {
   const { timeline } = twoChapters({ kind: "dissolve", sec: 0.5 });
-  assert.deepEqual(timeline.transitions, [{ kind: "dissolve", at: 3.5, duration: 0.5 }]);
+  assert.deepEqual(timeline.transitions, [{ kind: "dissolve", start: 3.5, duration: 0.5 }]);
   assert.equal(timeline.segments[1].start, 3.5);
   assert.equal(timeline.total, 6.5);
 });
 
 test("push acts as dissolve and warns", () => {
   const { timeline, warnings } = twoChapters({ kind: "push", sec: 0.5 });
-  assert.deepEqual(timeline.transitions, [{ kind: "push", at: 3.5, duration: 0.5 }]);
+  assert.deepEqual(timeline.transitions, [{ kind: "push", start: 3.5, duration: 0.5 }]);
   assert.equal(timeline.total, 6.5);
   assert.equal(warnings.length, 1);
   assert.match(warnings[0], /push/);
@@ -333,7 +345,7 @@ test("a transition after the last chapter with no outro is dropped", () => {
   assert.equal(timeline.total, 4);
 });
 
-test("a dissolve that makes narration overlap warns", () => {
+test("a dissolve that makes narration overlap fails and names the transition", () => {
   const plan = planOf([
     {
       id: "a",
@@ -342,9 +354,10 @@ test("a dissolve that makes narration overlap warns", () => {
     },
     { id: "b", scenes: [{ id: "s2", source: { in: 3, out: 6 }, lines: [{ id: "y" }] }] },
   ]);
-  const { warnings } = buildTimeline(plan, probe, voiceOf({ x: 2.7, y: 1 }));
-  assert.equal(warnings.length, 1);
-  assert.match(warnings[0], /"y"/);
+  assert.throws(
+    () => buildTimeline(plan, probe, voiceOf({ x: 2.7, y: 1 })),
+    /narration "y" starts at 1\.20 s, before the previous line ends at 2\.90 s; shorten the transition/,
+  );
 });
 
 test("clicks and callouts map through the rate and clamp at the video end", () => {
@@ -546,16 +559,31 @@ test("music comes from voice.json and carries a ducking lane", () => {
   assert.deepEqual(none.warnings, []);
 });
 
-test("music named in the plan but missing from voice.json warns and is left out", () => {
+test("music missing from voice.json is left out; staleVoice reports it", () => {
   const scene = { id: "s", lines: [{ id: "a" }] };
   for (const music of [{ file: "bed.mp3" }, { prompt: "calm piano" }]) {
     const plan = planOf([{ id: "c", scenes: [scene] }], {}, { music });
     const { timeline, warnings } = buildTimeline(plan, probe, voiceOf({ a: 2 }));
     assert.equal(timeline.music, undefined);
-    assert.deepEqual(warnings, [
-      "music is set in the plan but not in voice.json; rerun npm run voice",
-    ]);
+    assert.deepEqual(warnings, []);
   }
+});
+
+test("music shorter than the video warns", () => {
+  const scene = { id: "s", lines: [{ id: "a" }] };
+  const plan = planOf([{ id: "c", scenes: [scene] }], {}, { music: { file: "bed.mp3" } });
+  const short = voiceOf({ a: 2 }, { music: { file: "m.mp3", key: "k", duration: 4 } });
+  const { timeline, warnings } = buildTimeline(plan, probe, short);
+  assert.deepEqual(warnings, ["music is 4.0 s but the video is 10.0 s; it will stop early"]);
+  assert.deepEqual(timeline.warnings, warnings);
+  const long = voiceOf({ a: 2 }, { music: { file: "m.mp3", key: "k", duration: 10 } });
+  assert.deepEqual(buildTimeline(plan, probe, long).warnings, []);
+});
+
+test("the timeline carries the warnings it returns", () => {
+  const { timeline, warnings } = twoChapters({ kind: "push", sec: 0.5 });
+  assert.equal(warnings.length, 1);
+  assert.deepEqual(timeline.warnings, warnings);
 });
 
 test("a chapter named intro or outro does not collide with those cards", () => {

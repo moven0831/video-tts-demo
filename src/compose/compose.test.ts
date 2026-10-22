@@ -7,7 +7,7 @@ import { compose } from "./compose.ts";
 import { pickSide } from "./templates/overlay.ts";
 
 const fixture = (name: string) => new URL(`../../test/fixtures/${name}`, import.meta.url);
-const timeline = Timeline.parse(JSON.parse(await readFile(fixture("timeline.json"), "utf8")));
+const timeline = Timeline.parse(JSON.parse(await readFile(fixture("timeline.golden.json"), "utf8")));
 const plan = EditPlan.parse(JSON.parse(await readFile(fixture("edit-plan.json"), "utf8")));
 
 test("index.html matches the golden file", async () => {
@@ -18,7 +18,7 @@ test("index.html matches the golden file", async () => {
 
 test("root duration equals the timeline total", () => {
   const html = compose(timeline, plan).files["index.html"];
-  assert.match(html, /data-composition-id="demo" data-start="0" data-duration="18.6"/);
+  assert.match(html, /data-composition-id="demo" data-start="0" data-duration="19.5"/);
   assert.match(html, /window\.__timelines\["demo"\] = tl/);
 });
 
@@ -34,10 +34,12 @@ test("every video is muted and carries data-media-start", () => {
 
 test("segments with a freeze emit a still and shorten the video", () => {
   const result = compose(timeline, plan);
-  assert.deepEqual(result.stills, [{ scene: "open-app", at: 4, to:"assets/freeze-open-app.png" }]);
+  assert.deepEqual(result.stills, [
+    { scene: "open-app", mediaStart: 0, at: 3.966667, to: "assets/freeze-open-app.png" },
+  ]);
   const html = result.files["index.html"];
-  assert.match(html, /<video id="vid-open-app"[^>]*data-start="6" data-duration="4"/);
-  assert.match(html, /<img id="frz-open-app"[^>]*data-start="10" data-duration="1.1"/);
+  assert.match(html, /<video id="vid-open-app"[^>]*data-start="6.55" data-duration="4"/);
+  assert.match(html, /<img id="frz-open-app"[^>]*data-start="10.55" data-duration="1.1"/);
 });
 
 test("card hosts match their files and are static", () => {
@@ -93,6 +95,17 @@ test("plan text is escaped", () => {
   }
 });
 
+test("a hostile font name cannot close the style tag or open a script", () => {
+  const font = 'x"; }</style><script>alert(1)</script>';
+  const tags = (text: string) => [/<\/style>/g, /<script/g].map((re) => text.match(re)?.length ?? 0);
+  const plain = compose(timeline, plan).files;
+  const hostile = compose(timeline, { ...plan, style: { ...plan.style, font } }).files;
+  for (const [name, text] of Object.entries(hostile)) {
+    assert.deepEqual(tags(text), tags(plain[name]), name);
+    assert.doesNotMatch(text, /alert\(1\)/, name);
+  }
+});
+
 test("music lane becomes a volume automation in linear gain", () => {
   const tl: Timeline = {
     ...timeline,
@@ -117,7 +130,7 @@ test("music lane becomes a volume automation in linear gain", () => {
 });
 
 test("push falls back to dissolve with a warning", () => {
-  const tl: Timeline = { ...timeline, transitions: [{ kind: "push", at: 3, duration: 0.5 }] };
+  const tl: Timeline = { ...timeline, transitions: [{ kind: "push", start: 3, duration: 0.5 }] };
   assert.match(compose(tl, plan).warnings[0], /push/);
 });
 
