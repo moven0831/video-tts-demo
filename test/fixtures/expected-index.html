@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="assets/gsap.min.js"></script>
+    <style>
+@font-face { font-family: "Inter"; font-weight: 400; font-style: normal; font-display: block; src: url("assets/fonts/inter-400.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 600; font-style: normal; font-display: block; src: url("assets/fonts/inter-600.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 700; font-style: normal; font-display: block; src: url("assets/fonts/inter-700.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 800; font-style: normal; font-display: block; src: url("assets/fonts/inter-800.woff2") format("woff2"); }
+:root { --bg: #0b0b10; --fg: #f5f5f7; --muted: rgba(245, 245, 247, 0.62); --hairline: rgba(245, 245, 247, 0.16); --accent: #6E56CF; --accent-soft: #6E56CF33; --accent-glow: #6E56CF99; --font: "Inter", "Inter", system-ui, sans-serif; }
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); }
+#root { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); font-family: var(--font); }
+.cam { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; z-index: 1; }
+.cam video, .cam img { position: absolute; }
+.card-host { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; z-index: 10; }
+.chapter { position: absolute; left: 48px; top: 44px; z-index: 20; display: flex; align-items: center; gap: 14px; padding: 11px 24px 11px 20px; border-radius: 999px; background: rgba(14, 14, 20, 0.8); color: #fff; font-size: 24px; font-weight: 600; letter-spacing: -0.005em; opacity: 0; }
+.chapter::before { content: ""; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); }
+.cap { position: absolute; left: 0; right: 0; bottom: 76px; z-index: 25; display: flex; justify-content: center; }
+.cap span { max-width: 1500px; padding: 14px 32px; border-radius: 20px; background: rgba(22, 22, 30, 0.9); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12), 0 10px 30px rgba(0, 0, 0, 0.35); color: #fff; font-size: 40px; font-weight: 600; line-height: 1.3; letter-spacing: -0.01em; text-align: center; }
+#fade { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; z-index: 30; background: #000; opacity: 0; pointer-events: none; }
+
+.co, .ring, .dot { position: absolute; opacity: 0; pointer-events: none; }
+.co { left: 0; top: 0; width: 1920px; height: 1080px; }
+.ring { width: calc(76px * var(--u)); height: calc(76px * var(--u)); border-radius: 50%; border: calc(5px * var(--u)) solid var(--accent); box-shadow: 0 0 calc(24px * var(--u)) var(--accent-glow); }
+.dot { width: calc(18px * var(--u)); height: calc(18px * var(--u)); border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 calc(4px * var(--u)) #fff; }
+.frame { position: absolute; border: calc(4px * var(--u)) solid var(--accent); border-radius: calc(18px * var(--u)); box-shadow: 0 0 0 calc(8px * var(--u)) var(--accent-soft), 0 0 calc(48px * var(--u)) var(--accent-glow); }
+.lw { position: absolute; display: flex; }
+.pill { padding: calc(10px * var(--u)) calc(24px * var(--u)); border-radius: 999px; background: var(--accent); color: #fff; font-size: calc(30px * var(--u)); font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; box-shadow: 0 calc(8px * var(--u)) calc(28px * var(--u)) rgba(0, 0, 0, 0.35); }
+.vec { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: visible; }
+.vec path { fill: none; stroke: var(--accent); stroke-width: calc(7px * var(--u)); stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 calc(8px * var(--u)) var(--accent-glow)); }
+.shaft, .scrawl { stroke-dasharray: 1; }
+
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="demo" data-start="0" data-duration="19.5" data-width="1920" data-height="1080" data-fps="30">
+      <div class="cam" id="cam">
+        <video id="vid-open-app" class="clip" src="assets/input.mp4" data-start="6.55" data-duration="4" data-media-start="0" style="left:0px;top:0px;width:1920px;height:1080px" muted playsinline></video><img id="frz-open-app" class="clip" src="assets/freeze-open-app.png" data-start="10.55" data-duration="1.1" style="left:0px;top:0px;width:1920px;height:1080px" />
+        <video id="vid-click-through" class="clip" src="assets/input.mp4" data-start="11.65" data-duration="4" data-media-start="4" style="left:0px;top:0px;width:1920px;height:1080px" muted playsinline></video>
+        <div id="ring-0-0" class="ring" style="--u:0.542;left:1179.404px;top:429.404px"></div><div id="dot-0" class="dot" style="--u:0.542;left:1195.122px;top:445.122px"></div>
+        <div id="co-0" class="co co-box" style="--u:0.542"><div class="frame" style="left:1044.58px;top:324.58px;width:460.84px;height:130.84px"></div><div class="lw" style="left:1050px;width:450px;top:464.092px;height:96px;align-items:flex-start;justify-content:center"><span class="pill">Open settings</span></div></div>
+      </div>
+      <div id="card-intro" class="card-host" data-composition-id="intro" data-composition-src="compositions/cards/intro.html" data-start="0" data-duration="3.55" data-no-timeline></div>
+      <div id="card-chapter-getting-started" class="card-host" data-composition-id="chapter-getting-started" data-composition-src="compositions/cards/chapter-getting-started.html" data-start="3.55" data-duration="3" data-no-timeline></div>
+      <div id="card-outro" class="card-host" data-composition-id="outro" data-composition-src="compositions/cards/outro.html" data-start="16.15" data-duration="3.35" data-no-timeline></div>
+      <div id="chapter-getting-started" class="chapter clip" data-start="6.55" data-duration="9.1">Getting started</div>
+      <div id="cap-0" class="cap clip" data-start="0.2" data-duration="3"><span>Welcome to the product tour.</span></div>
+      <div id="cap-1" class="cap clip" data-start="6.75" data-duration="2.35"><span>Start by opening the app.</span></div>
+      <div id="cap-2" class="cap clip" data-start="9.1" data-duration="2.2"><span>Everything you need is on the left.</span></div>
+      <div id="cap-3" class="cap clip" data-start="11.85" data-duration="3.6"><span>Click the settings icon to continue.</span></div>
+      <div id="cap-4" class="cap clip" data-start="16.35" data-duration="2.8"><span>That is all it takes.</span></div>
+      <div id="fade"></div>
+      <audio id="nar-intro-1" src="assets/audio/intro-1.mp3" data-start="0.2" data-duration="2.4" data-volume="1"></audio>
+      <audio id="nar-open-1" src="assets/audio/open-1.mp3" data-start="6.75" data-duration="2" data-volume="1"></audio>
+      <audio id="nar-open-2" src="assets/audio/open-2.mp3" data-start="9.1" data-duration="1.6" data-volume="1"></audio>
+      <audio id="nar-click-1" src="assets/audio/click-1.mp3" data-start="11.85" data-duration="3" data-volume="1"></audio>
+      <audio id="nar-outro-1" src="assets/audio/outro-1.mp3" data-start="16.35" data-duration="2.2" data-volume="1"></audio>
+      <audio id="sfx-open-app-0" src="assets/audio/open-app-0.mp3" data-start="8.55" data-duration="0.5" data-volume="0.8"></audio>
+    </div>
+    <script>
+      const tl = gsap.timeline({ paused: true });
+      tl.set(".cam", { x: 0, y: 0, scale: 1 }, 0);
+      tl.to(".cam", { scale: 2.4, x: -2208, y: -594, duration: 0.7, ease: "power2.inOut" }, 7.55);
+      tl.to(".cam", { scale: 1, x: 0, y: 0, duration: 0.7, ease: "power2.inOut" }, 9.55);
+      tl.set("#ring-0-0", { opacity: 1, scale: 0.35 }, 8.55);
+      tl.to("#ring-0-0", { opacity: 0, scale: 1.7, duration: 0.6, ease: "power2.out" }, 8.55);
+      tl.set("#dot-0", { opacity: 1, scale: 0.2 }, 8.55);
+      tl.to("#dot-0", { scale: 1, duration: 0.15, ease: "back.out(2)" }, 8.55);
+      tl.to("#dot-0", { opacity: 0, duration: 0.3 }, 8.85);
+      tl.fromTo("#co-0", { opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power2.out" }, 8.35);
+      tl.to("#co-0", { opacity: 0, duration: 0.25, ease: "power1.in" }, 9.2);
+      tl.fromTo("#card-intro .kicker, #card-intro .num, #card-intro .t, #card-intro .s, #card-intro .cta, #card-intro .rule i, #card-intro .foot", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out", stagger: 0.08 }, 0);
+      tl.to("#card-intro .kicker, #card-intro .num, #card-intro .t, #card-intro .s, #card-intro .cta, #card-intro .rule i, #card-intro .foot", { opacity: 0, duration: 0.25, ease: "power1.in" }, 3.3);
+      tl.fromTo("#card-chapter-getting-started .kicker, #card-chapter-getting-started .num, #card-chapter-getting-started .t, #card-chapter-getting-started .s, #card-chapter-getting-started .cta, #card-chapter-getting-started .rule i, #card-chapter-getting-started .foot", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out", stagger: 0.08 }, 3.55);
+      tl.to("#card-chapter-getting-started .kicker, #card-chapter-getting-started .num, #card-chapter-getting-started .t, #card-chapter-getting-started .s, #card-chapter-getting-started .cta, #card-chapter-getting-started .rule i, #card-chapter-getting-started .foot", { opacity: 0, duration: 0.25, ease: "power1.in" }, 6.3);
+      tl.fromTo("#card-outro .kicker, #card-outro .num, #card-outro .t, #card-outro .s, #card-outro .cta, #card-outro .rule i, #card-outro .foot", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out", stagger: 0.08 }, 16.15);
+      tl.to("#card-outro .kicker, #card-outro .num, #card-outro .t, #card-outro .s, #card-outro .cta, #card-outro .rule i, #card-outro .foot", { opacity: 0, duration: 0.25, ease: "power1.in" }, 19.25);
+      tl.fromTo("#chapter-getting-started", { opacity: 0, x: -16 }, { opacity: 1, x: 0, duration: 0.3, ease: "power2.out" }, 6.55);
+      tl.to("#chapter-getting-started", { opacity: 0, duration: 0.25 }, 15.4);
+      tl.to("#fade", { opacity: 1, duration: 0.25, ease: "power1.in" }, 15.4);
+      tl.to("#fade", { opacity: 0, duration: 0.25, ease: "power1.out" }, 16.15);
+      window.__timelines = window.__timelines || {};
+      window.__timelines["demo"] = tl;
+    </script>
+  </body>
+</html>

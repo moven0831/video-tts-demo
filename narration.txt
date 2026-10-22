@@ -1,8 +1,9 @@
 # Narration for the demo video. One block per audio clip.
 # Separate clips with a blank line. Lines starting with # are ignored,
 # so use them for notes such as timestamps.
-# Generate the clips with: npm run tts [narration-file] [output-dir]
-# A rerun replaces the numbered clips (01.mp3, 02.mp3, ...) in the output dir.
+# A quick way to seed an edit plan from this file, one scene per block:
+#   npm run plan -- <project> --from-narration narration.txt
+# A "# m:ss" line before a block sets where that scene starts in the recording.
 
 # 0:00
 Welcome to the demo. This is where the opening line goes.

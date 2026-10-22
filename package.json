@@ -3,15 +3,33 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "tts": "tsx --env-file=.env.local tts.ts",
+    "probe": "tsx src/cli/probe.ts",
+    "plan": "tsx --env-file-if-exists=.env.local src/cli/plan.ts",
+    "plan:check": "tsx src/cli/plan-check.ts",
+    "voice": "tsx --env-file-if-exists=.env.local src/cli/voice.ts",
+    "timeline": "tsx src/cli/timeline.ts",
+    "compose": "tsx src/cli/compose.ts",
+    "render": "tsx src/cli/render.ts",
+    "mux": "tsx src/cli/mux.ts",
+    "demo": "tsx --env-file-if-exists=.env.local src/cli/demo.ts",
+    "schema": "tsx src/cli/schema.ts",
+    "clean": "tsx src/cli/clean.ts",
+    "hf": "HYPERFRAMES_NO_UPDATE_CHECK=1 HYPERFRAMES_SKIP_SKILLS=1 hyperframes",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tts.test.ts"
+    "test": "tsx --test 'src/**/*.test.ts'",
+    "test:smoke": "tsx --test test/smoke.test.ts test/demo.test.ts",
+    "check": "npm run typecheck && REQUIRE_SMOKE=1 npm test && REQUIRE_SMOKE=1 npm run test:smoke"
   },
   "dependencies": {
-    "@elevenlabs/elevenlabs-js": "^2.74.0"
+    "@anthropic-ai/sdk": "0.137.0",
+    "@elevenlabs/elevenlabs-js": "2.74.0",
+    "@fontsource/inter": "5.3.0",
+    "zod": "4.6.7"
   },
   "devDependencies": {
-    "@types/node": "^20.19.43",
+    "@types/node": "^22",
+    "gsap": "3.15.0",
+    "hyperframes": "0.8.183",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }

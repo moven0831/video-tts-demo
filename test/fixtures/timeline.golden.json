@@ -1,0 +1,185 @@
+{
+  "total": 19.5,
+  "stage": {
+    "width": 1920,
+    "height": 1080
+  },
+  "fit": {
+    "scale": 1.5,
+    "x": 0,
+    "y": 0
+  },
+  "segments": [
+    {
+      "scene": "open-app",
+      "start": 6.55,
+      "end": 11.65,
+      "in": 0,
+      "out": 4,
+      "rate": 1,
+      "freeze": {
+        "at": 3.966667,
+        "start": 10.55,
+        "duration": 1.1
+      }
+    },
+    {
+      "scene": "click-through",
+      "start": 11.65,
+      "end": 15.65,
+      "in": 4,
+      "out": 8,
+      "rate": 1
+    }
+  ],
+  "camera": [
+    {
+      "t": 7.55,
+      "scale": 2.4,
+      "x": -2208,
+      "y": -594,
+      "duration": 0.7,
+      "ease": "power2.inOut"
+    },
+    {
+      "t": 9.55,
+      "scale": 1,
+      "x": 0,
+      "y": 0,
+      "duration": 0.7,
+      "ease": "power2.inOut"
+    }
+  ],
+  "clicks": [
+    {
+      "t": 8.55,
+      "x": 1200,
+      "y": 450,
+      "kind": "click"
+    }
+  ],
+  "callouts": [
+    {
+      "box": {
+        "x": 1050,
+        "y": 330,
+        "w": 450,
+        "h": 120
+      },
+      "label": "Open settings",
+      "kind": "box",
+      "side": "auto",
+      "t0": 8.35,
+      "t1": 9.45
+    }
+  ],
+  "cards": [
+    {
+      "id": "intro",
+      "kind": "title",
+      "title": "Product tour",
+      "subtitle": "A quick look",
+      "start": 0,
+      "duration": 3.55
+    },
+    {
+      "id": "chapter-getting-started",
+      "kind": "chapter",
+      "title": "Getting started",
+      "start": 3.55,
+      "duration": 3
+    },
+    {
+      "id": "outro",
+      "kind": "outro",
+      "title": "Thanks for watching",
+      "start": 16.15,
+      "duration": 3.35
+    }
+  ],
+  "transitions": [
+    {
+      "kind": "fade-black",
+      "start": 15.65,
+      "duration": 0.5
+    }
+  ],
+  "narration": [
+    {
+      "lineId": "intro-1",
+      "file": "intro-1.mp3",
+      "start": 0.2,
+      "duration": 2.4
+    },
+    {
+      "lineId": "open-1",
+      "file": "open-1.mp3",
+      "start": 6.75,
+      "duration": 2
+    },
+    {
+      "lineId": "open-2",
+      "file": "open-2.mp3",
+      "start": 9.1,
+      "duration": 1.6
+    },
+    {
+      "lineId": "click-1",
+      "file": "click-1.mp3",
+      "start": 11.85,
+      "duration": 3
+    },
+    {
+      "lineId": "outro-1",
+      "file": "outro-1.mp3",
+      "start": 16.35,
+      "duration": 2.2
+    }
+  ],
+  "captions": [
+    {
+      "start": 0.2,
+      "end": 3.2,
+      "lines": [
+        "Welcome to the product tour."
+      ]
+    },
+    {
+      "start": 6.75,
+      "end": 9.1,
+      "lines": [
+        "Start by opening the app."
+      ]
+    },
+    {
+      "start": 9.1,
+      "end": 11.3,
+      "lines": [
+        "Everything you need is on the left."
+      ]
+    },
+    {
+      "start": 11.85,
+      "end": 15.45,
+      "lines": [
+        "Click the settings icon to continue."
+      ]
+    },
+    {
+      "start": 16.35,
+      "end": 19.15,
+      "lines": [
+        "That is all it takes."
+      ]
+    }
+  ],
+  "sfx": [
+    {
+      "id": "open-app-0",
+      "file": "open-app-0.mp3",
+      "start": 8.55,
+      "duration": 0.5
+    }
+  ],
+  "warnings": []
+}

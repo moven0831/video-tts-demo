@@ -1,2 +1,9 @@
 .env*
 node_modules/
+projects/*/build/
+projects/*/out/
+projects/**/*.mp4
+projects/**/*.mp3
+projects/**/*.wav
+.hyperframes/
+.claude/settings.local.json
