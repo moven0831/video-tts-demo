@@ -5,21 +5,13 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { capture, run } from "../src/util/exec.ts";
+import { ffmpegSkip } from "../src/util/skip.ts";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const TSX = join(ROOT, "node_modules/.bin/tsx");
 
-async function ffmpegMissing(): Promise<string | false> {
-  try {
-    await run("ffmpeg", ["-version"]);
-    return false;
-  } catch {
-    return "ffmpeg is not installed";
-  }
-}
-
 test("demo without --yes probes, checks the plan, shows the voice spend and stops", {
-  skip: await ffmpegMissing(),
+  skip: ffmpegSkip(),
   timeout: 120_000,
 }, async (t) => {
   const dir = join(await mkdtemp(join(tmpdir(), "demo-")), "proj");

@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { run } from "../util/exec.ts";
+import { ffmpegSkip } from "../util/skip.ts";
 import { detectScenes, parseScenes } from "./scenes.ts";
 
-const skip = spawnSync("ffmpeg", ["-version"]).error ? "ffmpeg is not installed" : false;
+const skip = ffmpegSkip();
 
 // Captured from ffmpeg 8.1 on red 1 s, blue 1 s, green 1 s at 10 fps.
 const capture = `frame:0    pts:10240   pts_time:1

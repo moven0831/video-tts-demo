@@ -18,7 +18,7 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test 'src/**/*.test.ts'",
     "test:smoke": "tsx --test test/smoke.test.ts test/demo.test.ts",
-    "check": "npm run typecheck && npm test && npm run test:smoke"
+    "check": "npm run typecheck && REQUIRE_SMOKE=1 npm test && REQUIRE_SMOKE=1 npm run test:smoke"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.137.0",
