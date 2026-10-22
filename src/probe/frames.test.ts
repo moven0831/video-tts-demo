@@ -45,11 +45,13 @@ test("grid layout places tiles row by row", () => {
   assert.equal(gridLayout(4, 3, 10, 5), "0_0|10_0|20_0|0_5");
 });
 
-test("color matrix follows the tagged color space and defaults to bt709", () => {
-  assert.equal(colorMatrix(undefined), "bt709");
-  assert.equal(colorMatrix("bt709"), "bt709");
-  assert.equal(colorMatrix("smpte170m"), "bt601");
-  assert.equal(colorMatrix("bt2020nc"), "bt2020");
+test("color matrix follows the tag, then the renderer default for the height", () => {
+  assert.equal(colorMatrix({ colorSpace: "bt709", height: 360 }), "bt709");
+  assert.equal(colorMatrix({ colorSpace: "smpte170m", height: 1080 }), "bt601");
+  assert.equal(colorMatrix({ colorSpace: "bt2020nc", height: 2160 }), "bt2020");
+  assert.equal(colorMatrix({ height: 719 }), "bt601");
+  assert.equal(colorMatrix({ height: 720 }), "bt709");
+  assert.equal(colorMatrix({ colorSpace: "unknown", height: 480 }), "bt601");
 });
 
 test("frame files are numbered from 0001 at second 0", () => {

@@ -52,11 +52,14 @@ export function gridLayout(n: number, cols: number, w: number, h: number): strin
   return Array.from({ length: n }, (_, i) => `${(i % cols) * w}_${Math.floor(i / cols) * h}`).join("|");
 }
 
-// ffmpeg assumes bt601 for untagged sources while the renderer decodes bt709 (docs/spike.md).
-export function colorMatrix(colorSpace: string | undefined): string {
+// The matrix the renderer decodes with, so stills and sheets match the video it shows. For an
+// untagged source Chrome uses bt601 below 720 lines and bt709 from there up; ffmpeg alone would
+// assume bt601 at every size (docs/spike.md).
+export function colorMatrix({ colorSpace, height }: Pick<Probe, "colorSpace" | "height">): string {
   if (colorSpace === "smpte170m" || colorSpace === "bt470bg") return "bt601";
   if (colorSpace === "bt2020nc" || colorSpace === "bt2020c") return "bt2020";
-  return "bt709";
+  if (colorSpace === "bt709") return "bt709";
+  return height < 720 ? "bt601" : "bt709";
 }
 
 export function frameFile(t: number): string {
@@ -66,7 +69,7 @@ export function frameFile(t: number): string {
 export async function extractFrames(input: string, probe: Probe, dir: string): Promise<number> {
   await rm(dir, { recursive: true, force: true });
   await mkdir(dir, { recursive: true });
-  const m = colorMatrix(probe.colorSpace);
+  const m = colorMatrix(probe);
   await run("ffmpeg", [
     ...["-hide_banner", "-v", "error", "-i", input, "-an"],
     ...["-vf", `fps=1,scale=1280:-2:in_color_matrix=${m}:out_color_matrix=${m}`],

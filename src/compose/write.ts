@@ -134,7 +134,7 @@ export async function writeHf(
     const src = isAbsolute(from) ? from : resolve(build, from);
     await place(src, join(hf, to));
   }
-  const matrix = colorMatrix(probe.colorSpace);
+  const matrix = colorMatrix(probe);
   const { lead, vfr } =
     result.stills.length > 0 ? await streamTraits(input) : { lead: 0, vfr: false };
   for (const still of result.stills) {
