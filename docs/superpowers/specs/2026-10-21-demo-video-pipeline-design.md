@@ -40,7 +40,7 @@ ElevenLabs (`@elevenlabs/elevenlabs-js@2.74.0`)
 - Whether `eleven_v4` supports with-timestamps is unverified; the code must handle a missing `alignment`.
 
 HyperFrames 0.8.183 (verify during the spike; `docs/spike.md` records results)
-- Node >= 22. `npx hyperframes browser ensure` downloads a pinned chrome-headless-shell to `~/.cache/hyperframes/chrome`; `HYPERFRAMES_BROWSER_PATH` overrides.
+- Node >= 22 (>= 22.9 for our `--env-file-if-exists` scripts). `npx hyperframes browser ensure` downloads a pinned chrome-headless-shell to `~/.cache/hyperframes/chrome`; `HYPERFRAMES_BROWSER_PATH` overrides.
 - Root element: `data-composition-id`, `data-start="0"`, `data-width`, `data-height`, `data-duration` (compile-time), optional `data-fps`.
 - Timed elements: `id` + `class="clip"` + `data-start` + `data-duration`.
 - `<video id src data-start data-duration data-media-start data-playback-rate muted playsinline>`. Front trim is `data-media-start`. Frames are extracted by ffmpeg.
@@ -67,67 +67,71 @@ projects/<name>/
   build/               derived, gitignored
     probe.json scenes.json motion.json
     frames/NNNN.jpg    1 fps, 1280 wide
-    sheets/NN.jpg      3x3 contact sheets, 1920x1080, timestamp per tile
+    sheets/NN.jpg      3x3 contact sheets, 1920x1080, no timestamps
+    sheets/index.json  source time and position of every tile
     contact.jpg
     cache/plan/<sha>.json  cache/voice/<sha>.mp3 + <sha>.align.json  cache/sfx/<sha>.mp3  cache/music/<sha>.mp3
+    plan.rejected.json the director's reply when it failed validation: { text, errors }
     voice.json timeline.json captions.srt captions.vtt
-    hf/                index.html, hyperframes.json, compositions/cards/*.html, assets/
+    hf/                index.html, compositions/cards/*.html, assets/ (no hyperframes.json)
     render.mp4
-    <stage>.hash       input hash of the last successful run of that stage
+    probe.hash         probe's own input hash
+    <stage>.demo.hash  JSON { inputs, outputs } that demo writes for timeline, compose, render, mux
   out/                 gitignored
     final.mp4 final.srt final.vtt contact.jpg
 ```
 
 ## Stages
 
-Each stage is a thin CLI in `src/cli/<stage>.ts` over pure, tested modules. Every stage reads from disk, writes atomically (`.part` then rename), and records its input hash.
+Each stage is a thin CLI in `src/cli/<stage>.ts` over pure, tested modules. Every stage reads from disk and writes atomically (`.part` then rename). `probe` records its own input hash. `demo` records an input hash and output stat keys for `timeline`, `compose`, `render` and `mux`.
 
 1. probe (`src/probe/`)
-   - `ffprobe.ts`: width, height, fps, duration → `probe.json`.
-   - `scenes.ts`: run `ffmpeg -i input -vf "select='gt(scene,0.12)',showinfo" -f null -`, parse `pts_time` from stderr → `scenes.json` `[{ t, score }]`.
+   - `ffprobe.ts`: width, height, fps, duration, colour space, frame count → `probe.json`. `vfr: true` when `r_frame_rate` and `avg_frame_rate` differ by over 10%; probe, timeline and compose then warn and recommend a constant-frame-rate re-encode.
+   - `scenes.ts`: run `ffmpeg -i input -vf "select='gt(scene,0.12)',metadata=print:file=-" -f null -`, parse `pts_time` and `lavfi.scene_score` from stdout → `scenes.json` `[{ t, score }]`.
    - `motion.ts`: decode at 1 fps, 320x180 gray rawvideo; diff consecutive frames; per-second bounding box of changed pixels scaled to source pixels; idle spans → `motion.json`.
-   - `frames.ts`: 1 fps JPEG frames 1280 wide; 3x3 contact sheets with the timestamp drawn on each tile (ffmpeg `drawtext` + `tile`); a single `contact.jpg` overview.
+   - `frames.ts`: 1 fps JPEG frames 1280 wide; 3x3 contact sheets built with ffmpeg `xstack`, with no timestamp on the tiles (`drawtext` is missing from common ffmpeg builds); `sheets/index.json` holds each tile's time and position; a single `contact.jpg` overview.
 2. plan (`src/director/`)
    - `DIRECTOR.md`: the shared director brief. Camera grammar (push in to the region being used, hold, pull back to full frame between areas; one idea per shot), pacing, narration style (plain, second person, no invented features or numbers), caption rules, coordinate rules (boxes in source pixels of `probe.json` dimensions; sheet tiles are scaled, so convert), and how to choose `fit`.
    - `images.ts`: load sheets as base64 image blocks, each labelled with its time range.
    - `prompt.ts`: deterministic request builder (system = DIRECTOR.md, user = probe summary + scenes + motion + brief + sheets). Same inputs give byte-identical requests.
-   - `plan.ts`: `makePlan(client, inputs)` streams `DEMO_MODEL` with `output_config: { effort, format: zodOutputFormat(EditPlanDraft) }`, checks `stop_reason === "end_turn"`, parses, fills `meta.source` from probe, runs `validatePlan`. Cached at `build/cache/plan/<sha>.json` keyed on DIRECTOR.md, schema JSON, sheet hashes, brief, model, effort. The Anthropic client is injected so tests use a fake.
+   - `plan.ts`: `makePlan(client, inputs)` streams `DEMO_MODEL` with `output_config: { effort, format: zodOutputFormat(EditPlanDraft) }`, checks `stop_reason === "end_turn"`, parses, fills `meta.source` from probe, runs `validatePlan`. Cached at `build/cache/plan/<sha>.json` keyed on the request (DIRECTOR.md, schema JSON, sheet hashes, brief, model, effort). A reply that fails validation is written to `build/plan.rejected.json`. The Anthropic client is injected so tests use a fake.
    - `--from-narration narration.txt`: skeleton plan, one scene per `# m:ss` block.
    - The `/demo-video` skill uses the same DIRECTOR.md and schema, writes the JSON itself, and runs `npm run plan:check`.
 3. voice (`src/voice/`)
    - `elevenlabs.ts`: wraps `convertWithTimestamps`, `forcedAlignment.create`, `textToSoundEffects.convert`, `music.compose` behind a small interface so tests inject fakes.
-   - `cache.ts`: `writeCached(dir, key, produce)`; `.part` then rename; never leaves `.part` on failure.
+   - `cache.ts`: `writeCached(dir, key, ext, produce, check?)`; `.part` then rename; never leaves `.part` on failure. `check` validates the staged file, so a bad clip never takes the cache slot.
    - `align.ts`: character alignment → words `[{ text, start, end }]`; prefers `alignment` over `normalizedAlignment` when both exist.
    - `clips.ts`: moved from the root; `splitSegments` returns `{ text, at? }`, parsing `# m:ss` comment lines into `at`.
-   - Per narration line: cache key sha256(voiceId, modelId, text, previousText, nextText, voiceSettings, outputFormat). If `alignment` is missing, call forced alignment on the audio.
-   - Output `voice.json`: `{ lines: { [lineId]: { file, duration, words[] } }, sfx: {...}, music?: {...} }`. Duration from ffprobe on the MP3.
+   - Per narration line: cache key sha256(voiceId, modelId, text, previousText, nextText, outputFormat), plus an `audition` flag for audition clips (`keys.ts`). There are no voice settings in the key. If `alignment` is missing, call forced alignment on the audio, which uploads ElevenLabs' own audio.
+   - `voice` prints the resolved voice and model before it spends. Without `--yes` it writes `voice.json` only when every line, sfx cue and music clip is cached.
+   - Output `voice.json`: `{ lines: { [lineId]: { file, key, duration, words[] } }, sfx: {...}, music?: {...} }`; every entry carries the `key` it was made under. Duration from ffprobe on the MP3. `timeline` compares those keys with the plan (`staleVoice`) and refuses a stale `voice.json`.
    - `--dry-run` prints each line with character counts and totals and calls nothing. `--audition "<text>" --voices a,b` renders short clips into `build/audition/`.
 4. timeline (`src/timeline/`, pure; no I/O)
-   - Inputs: plan, probe, voice. Output `timeline.json` with absolute output times for every element.
+   - Inputs: plan, probe, voice. Output `timeline.json` with absolute output times for every element. `transitions[].start` is in output seconds. An optional `warnings` array carries the timeline's warnings, which `demo` prints at the end. `run.ts` loads the inputs (`loadPlan` validates the plan), checks the voice keys and writes the files.
    - Order: intro card, then per chapter (chapter card if any, scenes), then outro card. Transitions overlap neighbours by `transition.sec` for `dissolve`; `fade-black` inserts half-fade out and in; `cut` is zero.
    - Per scene, V = sum(line duration + pauseAfter) + 0.2 s lead-in; S = source.out - source.in.
      - V <= S: play at rate 1 for S (`hold`), or cut the tail to V + 0.8 s (`trim`).
      - V > S, `freeze` (default): play S, then hold a still of the last frame for V - S + 0.6 s. Warn above 6 s.
      - V > S, `slow`: rate = max(0.5, S / V); any remainder becomes a freeze.
-     - A segment with a freeze records `freeze.at`: the source time of the last frame the video plays, `(ceil(out * fps) - 1) / fps` using the probe's fps. Compose extracts the still at that frame, clamped to the video stream's last frame (`probe.frames`), and fails with the scene and time if ffmpeg writes nothing. Probe records `vfr: true` when `r_frame_rate` and `avg_frame_rate` differ by over 1% and recommends a constant-frame-rate re-encode.
+     - A segment with a freeze records `freeze.at`: the source time of the last frame the video plays, `(ceil(out * fps) - 1) / fps` using the probe's fps. Compose extracts the still through the same sampling filters HyperFrames uses, so it matches the last frame the renderer shows. There is no clamp to the probed frame count: compose fails with the scene and time if ffmpeg writes nothing.
      - Card ids are `intro`, `outro` and `chapter-<id>`. The camera resets (instant key) when a card becomes opaque, no later than the card's end; a card shorter than the transition into it warns.
-     - Narration line `at` (source time) is a lower bound for the line start; lines never overlap.
-   - Camera (`camera.ts`): stage is 1920x1080; source is fit with letterbox (`sourceToStage`). Each keyframe box is expanded to at least 10% of the frame, to 16:9, and clamped inside the frame. scale = clamp(min(W / w, H / h), 1, style.camera.maxZoom); translate so the box centre sits at stage centre, clamped so no letterbox gap opens. `transform-origin: 0 0`. Moves last `style.camera.moveSec` with `power2.inOut`. `box: null` returns to full frame. Source times map through rate changes and freezes.
+     - Narration line `at` (source time) is a lower bound for the line start. Lines never overlap: a line that would start before the previous one ends is an error.
+   - Camera (`camera.ts`): stage is 1920x1080; source is fit with letterbox (`containFit`). Helpers `containFit`, `pointToStage` and `boxToStage` map source pixels to the stage. Each keyframe box is expanded to at least 10% of the frame, to 16:9, and clamped inside the frame. scale = clamp(min(W / w, H / h), 1, style.camera.maxZoom); translate so the box centre sits at stage centre, clamped so no letterbox gap opens. `transform-origin: 0 0`. Moves last `style.camera.moveSec` with `power2.inOut`. `box: null` returns to full frame. Source times map through rate changes and freezes.
    - Clicks and callouts map the same way; callout labels are placed on `side` (auto picks the side with most room).
    - Captions (`captions.ts`): words → cues. At most 42 characters per line, 2 lines, 20 characters per second. Split at sentence ends first, then commas, then before conjunctions/prepositions. Hold each cue at least max(1.8 s, speech + 0.6 s), clipped to the next cue start. Emits SRT and VTT text.
    - Ducking (`ducking.ts`): music volume lane points. Explicit point at t=0 at `gainDb`; duck to `gainDb + duckDb` during narration windows with 0.3 s ramps.
 5. compose (`src/compose/`)
-   - Pure function `compose(timeline, plan, assets)` returns `{ files: { [relPath]: string | { copyFrom } } }`; the CLI writes them to `build/hf/`.
+   - Pure function `compose(timeline, plan)` returns `{ files, copies, stills, warnings }`: file text by path, files to hardlink or copy, freeze stills to extract, and warnings. `writeHf` in `write.ts` writes `build/hf/`, extracts the stills and returns the warnings.
    - Root `index.html`: `data-composition-id="demo"`, `data-duration = timeline.total`, 1920x1080, 30 fps.
    - Layers bottom to top: background; camera wrapper `.cam` (untimed div with the transform) containing one `<video>` per scene segment (`muted playsinline`, `data-media-start`, `data-playback-rate`) and freeze `<img class="clip">` stills; overlay layer inside the camera (click rings, callout boxes/arrows/labels, so they track the UI under zoom); cards as nested compositions `compositions/cards/<id>.html`; captions as static `<div class="cap clip">` elements; `<audio>` per narration line, SFX, music with its volume lane.
    - One GSAP timeline at `window.__timelines["demo"]` for camera moves, click rings, callouts, card motion, and transitions.
-   - Transitions v1: `cut`, `fade-black`, `dissolve`. `push` falls back to `dissolve` with a warning until implemented.
-   - Static card hosts carry `data-no-timeline`; animated cards register their own timeline under their composition id.
-   - Assets: hardlink or copy `input.mp4`, freeze PNGs (extracted with the bt709 matrix, see facts above), voice/SFX/music audio; vendor `gsap.min.js` from the `gsap` package and Inter woff2 from `@fontsource/inter` into `assets/` so rendering needs no network.
+   - Transitions v1: `cut`, `fade-black`, `dissolve`. `push` is accepted but renders as `dissolve`, with a warning from timeline and compose.
+   - Card files are static. Their motion lives on the root timeline, and every card host carries `data-no-timeline`.
+   - Assets: hardlink or copy `input.mp4`, freeze PNGs (extracted with the bt709 matrix, see facts above), voice/SFX/music audio; `compose` copies `gsap.min.js` from the `gsap` package and Inter woff2 from `@fontsource/inter` into `assets/` so rendering needs no network.
    - Theme: `style.theme`, `style.accent`, `style.font` drive CSS variables. Cards: big title, subtitle, accent bar; enter and exit with a short slide and fade.
-6. render (`src/render/render.ts`): `npx hyperframes lint build/hf --json` (fail on `ok: false` or any warning), then `npx hyperframes render build/hf --output build/render.mp4 --fps 30 --quality <looks|draft> --video-frame-format png --workers 1 --strict`, with the HyperFrames env flags; success is exit 0 plus an ffprobe of the output. Arguments passed as an array, never through a shell.
-7. mux (`src/render/mux.ts`, `contact.ts`): two-pass `loudnorm` to -14 LUFS / -1.5 dBTP with `-c:v copy` and `-map_metadata -1` → `out/final.mp4`; copy captions to `out/final.srt` and `out/final.vtt`; contact sheet `out/contact.jpg` via `fps=1/5,scale=320:-1,tile=6x5`.
-8. demo (`src/cli/demo.ts`): runs probe → plan (only if `edit-plan.json` is missing and `--plan` is given) → plan:check → voice → timeline → compose → render → mux, skipping stages whose `build/<stage>.hash` matches. `--force` reruns all; `--draft` renders draft quality. Spending stages print what they will spend and require `--yes` when not cached. `plan` and `voice` exit 3 when they stopped short of spending; `demo` turns that into an error until it gets `--yes`, and its single `--yes` approves both the director (`--plan`) and the voice spend. All CLIs print failures as one `error: <message>` line with exit code 1.
+6. render (`src/render/render.ts`): `npx hyperframes lint build/hf --json` (fail on `ok: false` or any warning), then `npx hyperframes render build/hf --output build/render.mp4 --fps 30 --quality <looks|draft> --video-frame-format png --workers 1 --strict`, with the HyperFrames env flags; success is exit 0 plus an ffprobe of the output, which must hold a video stream and, when the timeline has audio clips, an audio stream. HyperFrames mixes the audio at render. Arguments passed as an array, never through a shell.
+7. mux (`src/render/mux.ts`, `contact.ts`): two-pass `loudnorm` to -14 LUFS / -1.5 dBTP with `-c:v copy` and `-map_metadata -1` → `out/final.mp4`; copy captions to `out/final.srt` and `out/final.vtt`; contact sheet `out/contact.jpg` via `fps=1/<interval>,scale=320:-1,tile=6xN`: one tile per about 5 s, at most 30 tiles, 6 columns (`contactLayout`). Mux fails on a silent audio track when the timeline has audio clips.
+8. demo (`src/cli/demo.ts`): runs probe → plan (only if `edit-plan.json` is missing and `--plan` is given) → plan:check → voice → timeline → compose → render → mux, skipping `timeline`, `compose`, `render` and `mux` when their `build/<stage>.demo.hash` inputs match and their outputs are unchanged. `probe` and `voice` manage their own freshness. `--force` reruns those four; `--draft` renders draft quality. Spending stages print what they will spend and require `--yes` when not cached. `plan` and `voice` exit 3 when they stopped short of spending; `demo` turns that into an error until it gets `--yes`, and its single `--yes` approves both the director (`--plan`) and the voice spend. After the last stage it prints the timeline's warnings. All CLIs print failures as one `error: <message>` line with exit code 1; `DEBUG=1` prints the stack instead.
 
 ## edit-plan.json schema (`src/schema/edit-plan.ts`, Zod 4)
 
@@ -196,8 +200,8 @@ export const EditPlan = z.object({
   audio: z.object({
     voice: z.object({ voiceId: z.string().min(1), modelId: z.string().min(1) }),
     // file is a bare filename in the project's music/ dir (no slash, backslash, or leading dot).
-    music: z.object({ file: z.string().regex(/^[^/\\.][^/\\]*$/).nullable().default(null), prompt: z.string().max(400).optional(), gainDb: z.number().default(-18), duckDb: z.number().default(-12) }),
-    sfx: z.array(z.object({ scene: slug, t: sec, prompt: z.string().min(1).max(200), sec: sec.max(30) })).default([]),
+    music: z.object({ file: z.string().regex(/^[^/\\.][^/\\]*$/).nullable().default(null), prompt: z.string().max(400).optional(), gainDb: z.number().default(-18), duckDb: z.number().max(0).default(-12) }),
+    sfx: z.array(z.object({ scene: slug, t: sec, prompt: z.string().min(1).max(200), sec: z.number().min(0.5).max(30) })).default([]),
   }),
 });
 
@@ -207,26 +211,26 @@ export const EditPlanDraft = EditPlan.extend({ meta: EditPlan.shape.meta.omit({ 
 
 Field details may be adjusted by the foundation track if Zod 4 or `zodOutputFormat` require it (for example, structured outputs may not accept `.default()` or regex patterns; then the draft schema drops them and defaults are applied after parsing). Any change is recorded in this section.
 
-`validatePlan(plan, probe)` returns `{ errors[], warnings[] }`:
+`loadPlan(paths)` in `src/schema/load.ts` reads the plan and probe, runs `validatePlan` and throws on errors; voice, timeline and compose all call it. `validatePlan(plan, probe)` returns `{ errors[], warnings[] }`:
 - errors: `source.in < source.out <= probe.duration`; every scene-relative `t`, `at`, `t0`, `t1` inside its scene window; scenes ascending and non-overlapping in source time; ids unique; `t0 < t1`; sfx `scene` refers to an existing scene; boxes intersect the frame.
-- warnings: boxes clamped; callout window overlapping a camera move; estimated narration much longer than the scene (characters / 15 per second > S + 6 s); more than 3 callouts visible at once.
+- warnings: boxes clamped; callout window overlapping a camera move; estimated narration much longer than the scene (characters / 15 per second > S + 6 s); more than 2 callouts visible at once; both `file` and `prompt` set on the music; a font other than Inter; `meta.source` differing from `probe.json`.
 
 `edit-plan.schema.json` is generated from `EditPlan` with `z.toJSONSchema` by `npm run schema` and committed.
 
 ## Repo layout
 
 ```
-src/schema/    edit-plan.ts validate.ts edit-plan.schema.json
-src/probe/     ffprobe.ts scenes.ts motion.ts frames.ts
-src/director/  DIRECTOR.md images.ts prompt.ts plan.ts
-src/voice/     clips.ts elevenlabs.ts cache.ts align.ts
-src/timeline/  types.ts timeline.ts camera.ts captions.ts ducking.ts
-src/compose/   compose.ts templates/*.ts vendor.ts
-src/render/    render.ts mux.ts contact.ts
-src/cli/       probe plan plan-check voice compose render mux demo schema clean (.ts)
-src/util/      hash.ts fs.ts exec.ts
-test/fixtures/ edit-plan.json probe.json voice.json timeline.json expected-index.html spike/
-test/smoke.test.ts
+src/schema/    edit-plan.ts validate.ts load.ts artifacts.ts edit-plan.schema.json
+src/probe/     ffprobe.ts scenes.ts motion.ts frames.ts run.ts
+src/director/  DIRECTOR.md images.ts prompt.ts plan.ts skeleton.ts
+src/voice/     clips.ts elevenlabs.ts cache.ts align.ts keys.ts generate.ts
+src/timeline/  types.ts timeline.ts camera.ts captions.ts ducking.ts grid.ts run.ts
+src/compose/   compose.ts write.ts templates/*.ts vendor.ts
+src/render/    render.ts mux.ts contact.ts pipeline.ts
+src/cli/       probe plan plan-check voice timeline compose render mux demo schema clean (.ts)
+src/util/      hash.ts fs.ts exec.ts project.ts skip.ts
+test/fixtures/ edit-plan.json probe.json voice.json timeline.golden.json expected-index.html spike/
+test/          smoke.test.ts demo.test.ts
 ```
 
 Tests sit next to their module as `*.test.ts`, use `node:test` with hand-written fakes and `mkdtemp` temp dirs, and never touch the network.
@@ -234,8 +238,8 @@ Tests sit next to their module as `*.test.ts`, use `node:test` with hand-written
 Config:
 - tsconfig `include: ["src/**/*.ts", "test/**/*.ts"]`; `@types/node ^22`.
 - Exact pins: `@anthropic-ai/sdk 0.137.0`, `@elevenlabs/elevenlabs-js 2.74.0`, `zod 4.6.7`, `gsap 3.15.0`, `@fontsource/inter` (current), dev `hyperframes 0.8.183`.
-- Scripts: `probe plan plan:check voice compose render mux demo schema clean hf typecheck test test:smoke check`. `check` = typecheck + unit tests + smoke.
-- Env: `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`, `ELEVENLABS_MODEL_ID`, `ANTHROPIC_API_KEY`, `DEMO_MODEL`, `DEMO_EFFORT`, optional `HYPERFRAMES_BROWSER_PATH`. Scripts that call APIs load `.env.local` via `tsx --env-file-if-exists=.env.local` (or `--env-file` if the flag is unavailable).
+- Scripts: `probe plan plan:check voice timeline compose render mux demo schema clean hf typecheck test test:smoke check`. `check` = typecheck + unit tests + smoke, with `REQUIRE_SMOKE=1` so a missing ffmpeg or browser fails instead of skipping.
+- Env: `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`, `ELEVENLABS_MODEL_ID`, `ANTHROPIC_API_KEY`, `DEMO_MODEL`, `DEMO_EFFORT`, optional `HYPERFRAMES_BROWSER_PATH`. Scripts that call APIs load `.env.local` via `tsx --env-file-if-exists=.env.local` (`--env-file-if-exists` needs Node 22.9 or newer).
 
 ## Claude Code setup (project scope)
 
@@ -248,7 +252,7 @@ Config:
   1. `npm run probe -- <name>`; read `contact.jpg`, `scenes.json`, `motion.json`, sheets.
   2. Write `edit-plan.json` following `src/director/DIRECTOR.md` and the schema; `npm run plan:check -- <name>`. Gate: zero errors and the user approves a chapter/scene table with durations.
   3. `npm run voice -- <name> --dry-run`. Gate: the user approves the spend. Then `npm run voice -- <name> --yes`.
-  4. `npm run compose`, `npm run render -- <name> --draft`, `npm run mux`; show `out/contact.jpg`. Iterate by editing `edit-plan.json` only.
+  4. `npm run timeline`, `npm run compose`, `npm run render -- <name> --draft`, `npm run mux`; show `out/contact.jpg`. Iterate by editing `edit-plan.json` only.
   5. Final render at `looks` quality.
 - Project `CLAUDE.md`, at most 25 lines.
 
@@ -256,9 +260,9 @@ Config:
 
 THE CHECK: `npm run check`.
 
-Unit tests (no network): schema fixture passes, one failing case per `validatePlan` rule; `align` (spaces, punctuation, both alignments); `captions` (line length, line count, cps, hold, SRT/VTT format); `timeline` (hold, trim, freeze, slow, `at` lower bound, transitions, source-to-output mapping); `camera` (box to transform, clamps, letterbox); `ducking`; `compose` (golden `test/fixtures/expected-index.html`, refreshed with `UPDATE_GOLDEN=1`, plus structural checks); `prompt` determinism; `cache` atomicity; `clips` (existing cases plus `at`); `scenes` stderr parsing; `motion` bounding boxes from a synthetic buffer; `plan` with a fake client returning the fixture.
+Unit tests (no network): schema fixture passes, one failing case per `validatePlan` rule; `align` (spaces, punctuation, both alignments); `captions` (line length, line count, cps, hold, SRT/VTT format); `timeline` (hold, trim, freeze, slow, `at` lower bound, transitions, source-to-output mapping); `camera` (box to transform, clamps, letterbox); `ducking`; `compose` (golden `test/fixtures/expected-index.html`, refreshed with `UPDATE_GOLDEN=1`, plus structural checks); `prompt` determinism; `cache` atomicity; `clips` (existing cases plus `at`); `scenes` metadata parsing; `motion` bounding boxes from a synthetic buffer; `plan` with a fake client returning the fixture.
 
-Smoke test (`test/smoke.test.ts`, no API keys): skips with a reason when ffmpeg or the HyperFrames browser is unavailable.
+Smoke tests (`test/smoke.test.ts` and `test/demo.test.ts`, no API keys): skip with a reason when ffmpeg or the HyperFrames browser is unavailable. With `REQUIRE_SMOKE` set, as `npm run check` does, a missing tool fails the run instead.
 1. `ffmpeg -f lavfi -i testsrc2=size=1280x720:rate=30:duration=8` → `input.mp4` in a `mkdtemp` project.
 2. Copy `test/fixtures/edit-plan.json` (intro card, one chapter card, two scenes, one zoom, one click, one callout, outro).
 3. Fake voice: `sine=frequency=440` MP3s sized to each line, alignment spread evenly over the words.

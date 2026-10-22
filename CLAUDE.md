@@ -7,7 +7,7 @@ writes an edit plan from sampled frames, ElevenLabs voices it, HyperFrames rende
 
 Run each as `npm run <stage> -- <name>`, with `--` right after the stage name (the permission rules
 in `.claude/settings.json` match that form): probe, plan, plan:check, voice, timeline, compose,
-render, mux, demo, clean.
+render, mux, demo, clean, schema.
 
 - `demo` runs the chain and skips stages whose inputs are unchanged. `plan` and `voice` exit 3 when
   they stop short of spending; `demo` stops there until it gets `--yes`, and one
@@ -22,4 +22,5 @@ render, mux, demo, clean.
 - HyperFrames is pinned (`hyperframes@0.8.183`, plugin tag `v0.8.183`); upgrades go through smoke.
 - Planning over the API sends recording frames to Anthropic; check them for private content first.
 - Spending (`plan --yes`, `voice --yes`) needs an explicit yes. Secrets live in `.env.local`; never
-  read or print them. Check: `npm run check` (typecheck, tests, smoke; no network or keys).
+  read or print them. Check: `npm run check` (typecheck, tests, smoke with
+  `REQUIRE_SMOKE=1`, so a missing ffmpeg or browser fails; no network or keys)..
