@@ -16,13 +16,14 @@ const GAP = 16;
 const ARROW_LEN = 84;
 const TWEEN = 0.25;
 
-// Camera state a moment after the move that last started at or before t.
+// Where the camera settles after the last move that started at or before t; mid-move this is the
+// move's target, not the current view.
 export function viewAt(camera: Keyframe[], t: number): View {
   const last = camera.filter((k) => k.t <= t).at(-1);
   return last ?? { scale: 1, x: 0, y: 0 };
 }
 
-// Overlays ride the camera, so strokes and labels are drawn thinner by this factor to keep
+// Overlays ride the camera, so strokes and labels are drawn smaller by this factor to keep
 // them readable but not heavy when the camera is zoomed in.
 function unit(view: View): number {
   return num(1 / view.scale ** 0.7);

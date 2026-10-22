@@ -11,12 +11,14 @@ const SENTENCE_END = /[.!?…]["')\]]*$/;
 const CLAUSE_END = /[,;:]["')\]]*$/;
 const BREAK_BEFORE = new Set(["and", "but", "or", "so", "with", "to", "for", "in", "on", "of", "from"]);
 
-// Break weight dominates; line balance only separates breaks of the same kind.
+// One step of break weight (6) outweighs an imbalance gap of up to 0.6; past that, a balanced
+// weaker break beats a lopsided stronger one.
 const WEIGHT = 6;
 
 const text = (words: Word[]) => words.map((word) => word.text).join(" ");
 
-// The cps limit applies to the time a cue is on screen, not to the speech alone.
+// The cps limit applies to the cue's hold time (speech plus tail, at least 1.8 s), not to the
+// speech alone.
 const shownSec = (words: Word[]) =>
   Math.max(MIN_HOLD_SEC, words[words.length - 1].end - words[0].start + HOLD_TAIL_SEC);
 

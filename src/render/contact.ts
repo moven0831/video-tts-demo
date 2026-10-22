@@ -4,7 +4,8 @@ import { run } from "../util/exec.ts";
 const COLS = 6;
 const MAX_TILES = 30;
 
-// One tile per 5 s, fewer seconds per tile for short videos so the sheet is never one frame.
+// One tile per 5 s, capped at 30 tiles (longer videos space them wider); videos under 30 s get one
+// row of 6 so the sheet is never one frame.
 export function contactLayout(duration: number): { interval: number; cols: number; rows: number } {
   const interval = Math.max(Math.min(5, duration / COLS), duration / MAX_TILES, 0.1);
   const tiles = Math.min(MAX_TILES, Math.max(1, Math.ceil(duration / interval)));

@@ -48,8 +48,8 @@ export function expandBox(box: Rect, frame: Size): Rect {
   };
 }
 
-// Keeps the scaled video covering the stage. On a letterboxed axis the video is smaller than the
-// stage, so the range is empty and the video stays centred instead.
+// Keeps the scaled video covering the stage. While the scaled video is still shorter than the
+// stage on an axis (letterboxed, low zoom), no offset can cover it, so it stays centred.
 function coverClamp(t: number, stageLen: number, offset: number, videoLen: number, scale: number) {
   const lo = stageLen - (offset + videoLen) * scale;
   const hi = -offset * scale;
